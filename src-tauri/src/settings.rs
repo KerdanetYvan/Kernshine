@@ -17,7 +17,7 @@ pub struct Ack {
     ok: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn settings_get_info(app: AppHandle) -> Result<SettingsInfo, String> {
     Ok(SettingsInfo {
         version: app.package_info().version.to_string(),
@@ -25,7 +25,7 @@ pub fn settings_get_info(app: AppHandle) -> Result<SettingsInfo, String> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn settings_set_login_item(app: AppHandle, open_at_login: bool) -> Result<Ack, String> {
     let launcher = app.autolaunch();
     let res = if open_at_login {
@@ -39,7 +39,7 @@ pub fn settings_set_login_item(app: AppHandle, open_at_login: bool) -> Result<Ac
 
 /// Ouvre un rapport (.log) du dossier de journaux de l'application, et rien d'autre.
 /// Renvoie un message d'erreur, ou une chaîne vide si tout s'est bien passé.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn shell_open_log(app: AppHandle, path: String) -> String {
     let logs_dir = match app.path().app_data_dir().map(|d| d.join("logs")) {
         Ok(d) => d,
