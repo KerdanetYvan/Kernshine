@@ -76,37 +76,16 @@ jobs:
           cp "$SRC.sig" "$DEST.sig"
           echo "file=$DEST" >> "$GITHUB_OUTPUT"
 
+      # changelog-section.md : nouveautés brutes, reprises dans latest.json (affichées dans l'app).
+      # full-release-body.md : la page de la release, pour le grand public (scripts/release-notes.mjs).
       - name: Compose release notes
         shell: bash
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
-          INSTALLER="${{ steps.installer.outputs.file }}"
-
           node scripts/extract-changelog.mjs "$VERSION" > changelog-section.md
-
-          {
-            cat docs/PRESENTATION.md
-            echo
-            echo '---'
-            echo
-            cat changelog-section.md
-            echo
-            echo '---'
-            echo
-            echo '## Installation'
-            echo
-            echo "1. Téléchargez \`$INSTALLER\` ci-dessous."
-            echo '2. Lancez l’installeur. Windows peut afficher un avertissement SmartScreen (l’application n’est pas encore signée) : cliquez sur "Informations complémentaires" puis "Exécuter quand même".'
-            echo '3. Une fois l’installation terminée, lancez Kernshine depuis le menu Démarrer.'
-            echo
-            echo '## Vérification'
-            echo
-            echo '```'
-            sha256sum "$INSTALLER"
-            echo '```'
-          } > full-release-body.md
+          node scripts/release-notes.mjs "$VERSION" "$TAG" "${{ steps.installer.outputs.file }}" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > full-release-body.md
 
       - name: Determine prerelease flag
         id: prerelease
