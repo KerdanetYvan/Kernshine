@@ -1,4 +1,5 @@
 mod diagnose;
+mod drivers;
 mod hidden;
 mod proc;
 mod ps;
@@ -73,8 +74,12 @@ pub fn run() {
             updates::updates_hide,
             updates::updates_unhide,
             updates::updates_unhide_all,
-            updates::updates_get_drivers,
-            updates::updates_install_drivers,
+            drivers::drivers_get,
+            drivers::drivers_hide,
+            drivers::drivers_unhide_all,
+            drivers::drivers_install,
+            drivers::drivers_stop,
+            system::system_restart,
             updates::updates_install_software_stream,
             updates::updates_install_elevated,
             updates::updates_close_related_app,
@@ -92,6 +97,7 @@ mod tests {
     fn commands_never_run_on_the_window_thread() {
         let sources = [
             ("diagnose.rs", include_str!("diagnose.rs")),
+            ("drivers.rs", include_str!("drivers.rs")),
             ("hidden.rs", include_str!("hidden.rs")),
             ("proc.rs", include_str!("proc.rs")),
             ("ps.rs", include_str!("ps.rs")),

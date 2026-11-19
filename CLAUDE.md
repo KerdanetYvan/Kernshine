@@ -70,7 +70,7 @@ Pour une progression en continu (installation de logiciels), la commande reçoit
 Règles de sécurité (non négociables) :
 
 - Les commandes sont **async** et exécutent le travail bloquant dans `spawn_blocking` : l'interface ne doit jamais geler. Une commande `pub fn` sans `async` tourne sur le fil de la fenêtre : la déclarer `#[tauri::command(async)]` si elle est rapide et sans `.await`. Le test `commands_never_run_on_the_window_thread` (`lib.rs`) refuse toute commande restée sur ce fil.
-- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial).
+- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial, identifiants Windows Update au format GUID pour les pilotes).
 - Les scripts PowerShell passent par `ps.rs` : transmis en `-EncodedCommand` (jamais de fichier `.ps1` temporaire) et toute valeur insérée est échappée avec `ps::quote`. Les programmes externes (winget…) sont lancés avec une liste d'arguments, sans interpréteur.
 - Pas de commande « shell générique » exposée au front. Les permissions de la fenêtre sont dans `src-tauri/capabilities/default.json`.
 
@@ -85,7 +85,8 @@ src-tauri/
     system.rs          # Infos système + échantillonneur CPU/RAM en arrière-plan
     scan.rs            # Nettoyage : zones connues (dossiers, Corbeille, miniatures, Windows.old), analyse et vidage
     repair.rs          # Services, fichiers système, périphériques, registre, démarrage, disques
-    updates.rs         # Logiciels (winget), pilotes (Windows Update), rapports d'échec
+    updates.rs         # Logiciels (winget), applications ouvertes, rapports d'échec
+    drivers.rs         # Pilotes (Windows Update) : noms simples, point de restauration, installation un par un
     diagnose.rs        # Échecs d'installation : message simple + type (bouton à proposer)
     report.rs          # Rapport de chaque session de mise à jour (versions avant / attendue / après)
     settings.rs        # Version, lancement avec Windows, ouverture d'un rapport
@@ -120,7 +121,7 @@ Routes actuelles :
 - `/` → Accueil (`Dashboard`)
 - `/cleaning` → Nettoyage
 - `/applications` → Applications, onglet Mises à jour ; `/applications?onglet=demarrage` → onglet Démarrage (Désinstallation arrive avec #56)
-- `/drivers` → Pilotes (version provisoire : la page des maquettes arrive avec #51)
+- `/drivers` → Pilotes
 - `/repair` → Réparation
 - `/settings` → Paramètres
 - `/updates` → redirige vers `/applications`
@@ -212,7 +213,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Dashboard | Fonctionnel | Infos système, CPU et RAM en temps réel (échantillon toutes les 3 s) |
 | Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. L'onglet Gros fichiers viendra avec #55 |
 | Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`) |
-| Drivers | Provisoire | Pilotes via Windows Update, sortis de l'ancienne page Mises à jour ; page des maquettes avec #51 |
+| Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
 | Repair | Fonctionnel | Services, fichiers système, périphériques, registre, disques (le démarrage est passé dans Applications) |
 | Settings | Partiel | Version, mise à jour de Kernshine, lancement avec Windows ; thème, langue, télémétrie à venir |
 

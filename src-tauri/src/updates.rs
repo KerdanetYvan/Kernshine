@@ -25,8 +25,6 @@ const INSTALL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const SLOW_INSTALL_AFTER: Duration = Duration::from_secs(60);
 const VERIFY_TIMEOUT: Duration = Duration::from_secs(60);
 const ELEVATED_INSTALL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
-const DRIVER_SCAN_TIMEOUT: Duration = Duration::from_secs(60);
-const DRIVER_INSTALL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 const NO_UPDATER_ERROR: &str =
     "Le gestionnaire de mises à jour de Windows est introuvable sur ce PC";
@@ -35,7 +33,9 @@ const NO_UPDATER_ERROR: &str =
 /// (3010, 1641) et ceux de winget (« redémarrez pour terminer », « le PC va redémarrer »).
 const REBOOT_CODES: [i64; 4] = [3010, 1641, 0x8A15_0109, 0x8A15_010B];
 
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+pub(crate) async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(f)
         .await
         .map_err(|e| e.to_string())
@@ -214,31 +214,6 @@ fn parse_winget_table(output: &str) -> Vec<SoftwareUpdate> {
     packages
 }
 
-#[derive(Serialize)]
-pub struct ListResult<T> {
-    ok: bool,
-    data: Vec<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-impl<T> ListResult<T> {
-    fn ok(data: Vec<T>) -> Self {
-        ListResult {
-            ok: true,
-            data,
-            error: None,
-        }
-    }
-    fn err(message: &str) -> Self {
-        ListResult {
-            ok: false,
-            data: Vec::new(),
-            error: Some(message.into()),
-        }
-    }
-}
-
 /// Résultat de l'analyse des logiciels : la liste proposée, et à part les programmes que
 /// l'utilisateur a masqués (pour qu'il puisse les proposer de nouveau).
 #[derive(Serialize)]
@@ -306,7 +281,7 @@ fn get_software(hidden_ids: &[String]) -> SoftwareScan {
 }
 
 /// Dossier de données de l'application, où vit la liste des programmes masqués.
-fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_data_dir().map_err(|e| {
         log::warn!("dossier de données introuvable : {e}");
         GENERIC_ERROR.to_string()
@@ -327,7 +302,7 @@ pub async fn updates_get_hidden(app: AppHandle) -> Result<Vec<String>, String> {
     blocking(move || hidden::load(&dir)).await
 }
 
-fn hidden_change(
+pub(crate) fn hidden_change(
     app: &AppHandle,
     change: impl FnOnce(&Path) -> std::io::Result<Vec<String>> + Send + 'static,
 ) -> impl std::future::Future<Output = Result<Vec<String>, String>> {
@@ -359,95 +334,7 @@ pub async fn updates_unhide(app: AppHandle, id: String) -> Result<Vec<String>, S
 /// Proposer de nouveau tous les programmes masqués.
 #[tauri::command]
 pub async fn updates_unhide_all(app: AppHandle) -> Result<Vec<String>, String> {
-    hidden_change(&app, hidden::unhide_all).await
-}
-
-// ─── Pilotes ────────────────────────────────────────────────────────────────
-
-#[derive(Serialize)]
-pub struct DriverUpdate {
-    title: String,
-    #[serde(rename = "sizeMB")]
-    size_mb: f64,
-}
-
-const DRIVER_SCAN_SCRIPT: &str = r#"$ErrorActionPreference = 'SilentlyContinue'
-try {
-  $session  = New-Object -ComObject Microsoft.Update.Session
-  $searcher = $session.CreateUpdateSearcher()
-  $result   = $searcher.Search("IsInstalled=0 and Type='Driver' and IsHidden=0")
-  $list = @()
-  foreach ($u in $result.Updates) {
-    $list += [PSCustomObject]@{
-      title    = $u.Title
-      sizeMB   = [math]::Round($u.MaxDownloadSize / 1MB, 1)
-    }
-  }
-  if ($list.Count -eq 0) { '[]' } else { $list | ConvertTo-Json -Depth 2 }
-} catch {
-  '[]'
-}"#;
-
-const DRIVER_INSTALL_SCRIPT: &str = r#"$ErrorActionPreference = 'SilentlyContinue'
-$session  = New-Object -ComObject Microsoft.Update.Session
-$searcher = $session.CreateUpdateSearcher()
-$result   = $searcher.Search("IsInstalled=0 and Type='Driver' and IsHidden=0")
-$toInstall = New-Object -ComObject Microsoft.Update.UpdateColl
-foreach ($u in $result.Updates) { $toInstall.Add($u) | Out-Null }
-if ($toInstall.Count -gt 0) {
-  $dl = $session.CreateUpdateDownloader()
-  $dl.Updates = $toInstall
-  $dl.Download()
-  $inst = $session.CreateUpdateInstaller()
-  $inst.Updates = $toInstall
-  $inst.Install()
-}"#;
-
-fn get_drivers() -> ListResult<DriverUpdate> {
-    let rows = ps::run(DRIVER_SCAN_SCRIPT, DRIVER_SCAN_TIMEOUT).and_then(|out| ps::json_rows(&out));
-    match rows {
-        Ok(rows) => ListResult::ok(
-            rows.iter()
-                .map(|r| DriverUpdate {
-                    title: r
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                    size_mb: r.get("sizeMB").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                })
-                .collect(),
-        ),
-        Err(e) => {
-            log::warn!("[pilotes] analyse échouée : {e}");
-            ListResult::err(GENERIC_ERROR)
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct InstallResult {
-    ok: bool,
-    installed: u32,
-    errors: u32,
-}
-
-#[tauri::command]
-pub async fn updates_get_drivers() -> Result<ListResult<DriverUpdate>, String> {
-    blocking(get_drivers).await
-}
-
-#[tauri::command]
-pub async fn updates_install_drivers() -> Result<InstallResult, String> {
-    blocking(|| {
-        let ok = ps::run_elevated(DRIVER_INSTALL_SCRIPT, DRIVER_INSTALL_TIMEOUT);
-        InstallResult {
-            ok,
-            installed: u32::from(ok),
-            errors: u32::from(!ok),
-        }
-    })
-    .await
+    hidden_change(&app, |dir| hidden::unhide_all(dir, false)).await
 }
 
 // ─── Installation des logiciels ─────────────────────────────────────────────

@@ -185,6 +185,16 @@ pub fn system_get_disks() -> Vec<DiskSpace> {
     disks()
 }
 
+/// Redémarre le PC tout de suite. L'interface demande toujours confirmation avant :
+/// les documents non enregistrés seraient perdus.
+#[tauri::command(async)]
+pub fn system_restart() -> bool {
+    crate::proc::hidden("shutdown")
+        .args(["/r", "/t", "0"])
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
