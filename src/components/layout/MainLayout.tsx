@@ -1,18 +1,18 @@
 ﻿import { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Cpu, Wrench, Brush, RefreshCw, Settings, Minus, Square, X } from 'lucide-react';
+import { ArrowsClockwiseIcon, BroomIcon, GearSixIcon, HouseIcon, MinusIcon, SquareIcon, WrenchIcon, XIcon } from '@phosphor-icons/react';
 // Sous 32 px, la charte demande la version simplifiée du logo.
 import logo from '../../assets/logo/kernshine-mark-simplifie.svg';
 
 const appWindow = getCurrentWindow();
 
 const nav = [
-  { to: '/',          label: 'Dashboard',    icon: Cpu      },
-  { to: '/cleaning',  label: 'Nettoyage',    icon: Brush    },
-  { to: '/repair',    label: 'Réparation',   icon: Wrench   },
-  { to: '/updates',   label: 'Mises à jour', icon: RefreshCw },
-  { to: '/settings',  label: 'Paramètres',   icon: Settings },
+  { to: '/',          label: 'Dashboard',    icon: HouseIcon    },
+  { to: '/cleaning',  label: 'Nettoyage',    icon: BroomIcon    },
+  { to: '/repair',    label: 'Réparation',   icon: WrenchIcon   },
+  { to: '/updates',   label: 'Mises à jour', icon: ArrowsClockwiseIcon },
+  { to: '/settings',  label: 'Paramètres',   icon: GearSixIcon },
 ];
 
 export default function MainLayout() {
@@ -46,21 +46,21 @@ export default function MainLayout() {
             className="flex items-center justify-center w-11 h-full hover:bg-neutral-700 transition-colors"
             aria-label="Réduire"
           >
-            <Minus className="h-3.5 w-3.5" />
+            <MinusIcon className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => appWindow.toggleMaximize()}
             className="flex items-center justify-center w-11 h-full hover:bg-neutral-700 transition-colors"
             aria-label={maximized ? 'Restaurer' : 'Agrandir'}
           >
-            <Square className="h-3 w-3" />
+            <SquareIcon className="h-3 w-3" />
           </button>
           <button
             onClick={() => appWindow.close()}
             className="flex items-center justify-center w-11 h-full hover:bg-red-500 transition-colors"
             aria-label="Fermer"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
         </div>
       </header>
@@ -86,7 +86,7 @@ export default function MainLayout() {
                       ].join(' ')
                     }
                   >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <Icon weight="duotone" className="h-4 w-4 flex-shrink-0" />
                     <span>{label}</span>
                   </NavLink>
                 </li>

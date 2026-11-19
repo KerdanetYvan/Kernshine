@@ -73,7 +73,7 @@ cd src-tauri && cargo test    # Tests Rust
 | Bundler | Vite 7 |
 | Routing | React Router v7 (HashRouter) |
 | Style | Tailwind CSS 3.4 |
-| Icônes | Lucide React |
+| Icônes | Phosphor |
 | Logs | tauri-plugin-log |
 
 ---
