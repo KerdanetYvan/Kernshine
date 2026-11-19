@@ -78,6 +78,7 @@ pub fn run() {
             updates::updates_install_software_stream,
             updates::updates_install_elevated,
             updates::updates_close_related_app,
+            updates::updates_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

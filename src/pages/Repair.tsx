@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
-import { CaretDownIcon, CaretUpIcon, CheckCircleIcon, ClockIcon, CpuIcon, DatabaseIcon, HardDriveIcon, MagnifyingGlassIcon, RocketIcon, ShieldCheckIcon, WarningCircleIcon, WrenchIcon, XCircleIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, CaretUpIcon, CheckCircleIcon, ClockIcon, CpuIcon, DatabaseIcon, HardDriveIcon, MagnifyingGlassIcon, ShieldCheckIcon, WarningCircleIcon, WrenchIcon, XCircleIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
-import type { ServiceInfo, ServiceScanResult, RepairResult, SFCResult, DriverError, DriverErrorScanResult, RegistryIssue, RegistryScanResult, StartupItem, StartupScanResult, StartupChange, DiskDevice, DiskHealthResult, Ack } from '../types/commands';
+import type { ServiceInfo, ServiceScanResult, RepairResult, SFCResult, DriverError, DriverErrorScanResult, RegistryIssue, RegistryScanResult, DiskDevice, DiskHealthResult, Ack } from '../types/commands';
 import EnTetePage from '../components/ui/EnTetePage';
 
 // ── Types locaux ──────────────────────────────────────────────────────────────
@@ -101,14 +101,6 @@ export default function Repair() {
   const [regFixPhase, setRegFixPhase] = useState<FixPhase>('idle');
   const [regResult,   setRegResult]   = useState<RepairResult | null>(null);
 
-  // ── État : Démarrage ──
-  const [stpPhase,    setStpPhase]    = useState<DrvPhase>('idle');
-  const [stpOriginal, setStpOriginal] = useState<StartupItem[]>([]);
-  const [stpItems,    setStpItems]    = useState<StartupItem[]>([]);
-  const [stpError,    setStpError]    = useState<string | null>(null);
-  const [stpApplying, setStpApplying] = useState(false);
-  const [stpApplied,  setStpApplied]  = useState(false);
-
   // ── État : Disque ──
   const [diskPhase,     setDiskPhase]     = useState<DrvPhase>('idle');
   const [diskDevices,   setDiskDevices]   = useState<DiskDevice[]>([]);
@@ -166,46 +158,6 @@ export default function Repair() {
     setDrvResult(result);
     setDrvFixPhase('done');
   };
-
-  const scanStartup = async () => {
-    setStpPhase('scanning');
-    setStpError(null);
-    setStpApplying(false);
-    setStpApplied(false);
-    const res: StartupScanResult = await invoke<StartupScanResult>('repair_get_startup_items');
-    setStpOriginal(res.data);
-    setStpItems(res.data.map(i => ({ ...i })));
-    setStpError(res.ok ? null : (res.error ?? 'Erreur inconnue'));
-    setStpPhase('results');
-  };
-
-  const toggleStartup = (name: string) => {
-    setStpItems(prev => prev.map(i => i.name === name ? { ...i, enabled: !i.enabled } : i));
-    setStpApplied(false);
-  };
-
-  const applyStartup = async () => {
-    const changes: StartupChange[] = stpItems
-      .filter(item => {
-        const orig = stpOriginal.find(o => o.name === item.name);
-        return orig && orig.enabled !== item.enabled;
-      })
-      .map(item => ({ name: item.name, source: item.source, enabled: item.enabled }));
-
-    if (changes.length === 0) return;
-    setStpApplying(true);
-    const res = await invoke<Ack>('repair_set_startup_items', { changes });
-    setStpApplying(false);
-    if (res.ok) {
-      setStpOriginal(stpItems.map(i => ({ ...i })));
-      setStpApplied(true);
-    }
-  };
-
-  const stpChanges = stpItems.filter(item => {
-    const orig = stpOriginal.find(o => o.name === item.name);
-    return orig && orig.enabled !== item.enabled;
-  });
 
   const scanDisk = async () => {
     setDiskPhase('scanning');
@@ -660,135 +612,6 @@ export default function Repair() {
                 {regResult.ok
                   ? `✓ ${regResult.fixed} entrée${regResult.fixed > 1 ? 's supprimées' : ' supprimée'} — votre liste de programmes est à jour`
                   : '⚠ Certaines entrées n\'ont pas pu être supprimées'}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <SectionDivider />
-
-      {/* ══ Programmes au démarrage ════════════════════════════════════════════ */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <RocketIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-            <h2 className="text-lg font-semibold">Programmes au démarrage</h2>
-            {stpPhase === 'results' && stpChanges.length > 0 && (
-              <span className="text-xs bg-neutral-900 text-white px-2 py-0.5">
-                {stpChanges.length} modification{stpChanges.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-          {stpPhase !== 'scanning' && !stpApplying && (
-            <button
-              onClick={scanStartup}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-            >
-              <MagnifyingGlassIcon className="h-4 w-4" />
-              {stpPhase === 'results' ? 'Rescanner' : 'Analyser'}
-            </button>
-          )}
-        </div>
-
-        <p className="text-sm text-neutral-500">
-          Ces programmes se lancent automatiquement à chaque démarrage de votre PC.
-          En désactiver certains peut accélérer le démarrage. Vous pouvez les réactiver à tout moment.
-        </p>
-
-        {stpPhase === 'scanning' && (
-          <div className="flex items-center gap-3 py-4">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-            <p className="text-sm text-neutral-500">Analyse en cours…</p>
-          </div>
-        )}
-
-        {stpPhase === 'results' && (
-          <>
-            {stpError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Impossible d'effectuer l'analyse. Réessayez.</span>
-              </div>
-            )}
-
-            {!stpError && stpItems.length === 0 && (
-              <p className="text-sm text-neutral-400 py-2">Aucun programme de démarrage automatique trouvé.</p>
-            )}
-
-            {stpItems.length > 0 && (
-              <ul className="space-y-2">
-                {stpItems.map(item => (
-                  <li
-                    key={item.name}
-                    className={[
-                      'flex items-center gap-4 p-4 border transition-colors',
-                      item.enabled ? 'bg-white border-neutral-200' : 'bg-neutral-50 border-neutral-200 opacity-60',
-                    ].join(' ')}
-                  >
-                    <button
-                      onClick={() => toggleStartup(item.name)}
-                      disabled={stpApplying}
-                      className={[
-                        'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200',
-                        item.enabled ? 'bg-neutral-900' : 'bg-neutral-300',
-                        stpApplying ? 'cursor-not-allowed' : 'cursor-pointer',
-                      ].join(' ')}
-                      role="switch"
-                      aria-checked={item.enabled}
-                    >
-                      <span className={[
-                        'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200',
-                        item.enabled ? 'translate-x-4' : 'translate-x-0',
-                      ].join(' ')} />
-                    </button>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{item.name}</span>
-                        {item.source === 'system' && (
-                          <span className="text-xs text-neutral-400 bg-neutral-100 px-1.5 py-0.5">Système</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-neutral-400 truncate mt-0.5">{item.command}</p>
-                    </div>
-
-                    <span className={[
-                      'text-xs flex-shrink-0',
-                      item.enabled ? 'text-green-600' : 'text-neutral-400',
-                    ].join(' ')}>
-                      {item.enabled ? 'Actif' : 'Désactivé'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {stpChanges.length > 0 && !stpApplying && (
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-neutral-500">
-                  {stpChanges.length} modification{stpChanges.length > 1 ? 's' : ''} en attente — Windows vous demandera l'autorisation.
-                </p>
-                <button
-                  onClick={applyStartup}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                  Appliquer les modifications
-                </button>
-              </div>
-            )}
-
-            {stpApplying && (
-              <div className="flex items-center gap-3 pt-2">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-                <p className="text-sm text-neutral-600">Application en cours… cliquez sur Oui si Windows vous le demande.</p>
-              </div>
-            )}
-
-            {stpApplied && stpChanges.length === 0 && (
-              <div className="p-3 border bg-green-50 border-green-200 text-green-800 text-sm">
-                ✓ Modifications enregistrées. Les changements prendront effet au prochain démarrage.
               </div>
             )}
           </>

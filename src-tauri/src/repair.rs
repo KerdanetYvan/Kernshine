@@ -584,6 +584,63 @@ pub struct StartupItem {
     command: String,
     enabled: bool,
     source: &'static str,
+    /// Nécessaire au bon fonctionnement du PC : affiché verrouillé, jamais désactivé.
+    essential: Option<Essential>,
+}
+
+#[derive(Serialize, Clone, Copy, Debug, PartialEq)]
+pub struct Essential {
+    label: &'static str,
+    description: &'static str,
+}
+
+/// Programmes de démarrage qu'il ne faut pas désactiver : (mot cherché dans le nom ou la
+/// commande, nom affiché, description). Liste volontairement courte : seulement ce qui
+/// casse quelque chose de visible quand on le coupe.
+const ESSENTIALS: &[(&str, &str, &str)] = &[
+    (
+        "securityhealth",
+        "Sécurité Windows",
+        "Affiche l'état de la protection de votre PC",
+    ),
+    (
+        "windowsdefender",
+        "Sécurité Windows",
+        "Affiche l'état de la protection de votre PC",
+    ),
+    (
+        "rtkaud",
+        "Son de votre PC",
+        "Gère les haut-parleurs, le casque et le micro",
+    ),
+    (
+        "rthdvcpl",
+        "Son de votre PC",
+        "Gère les haut-parleurs, le casque et le micro",
+    ),
+    (
+        "wavessvc",
+        "Son de votre PC",
+        "Gère les haut-parleurs, le casque et le micro",
+    ),
+    (
+        "syntp",
+        "Pavé tactile",
+        "Fait fonctionner les gestes du pavé tactile",
+    ),
+    (
+        "etdctrl",
+        "Pavé tactile",
+        "Fait fonctionner les gestes du pavé tactile",
+    ),
+];
+
+fn essential(name: &str, command: &str) -> Option<Essential> {
+    let hay = format!("{name} {command}").to_lowercase();
+    ESSENTIALS
+        .iter()
+        .find(|(word, _, _)| hay.contains(word))
+        .map(|&(_, label, description)| Essential { label, description })
 }
 
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -636,27 +693,46 @@ if ($result.Count -eq 0) { '[]' } else { $result | ConvertTo-Json -Depth 2 }";
     let rows = ps::json_rows(&ps::run(script, SCAN_TIMEOUT)?)?;
     Ok(rows
         .iter()
-        .map(|r| StartupItem {
-            name: text(r, "name"),
-            command: text(r, "command"),
-            enabled: r
-                .get("enabled")
-                .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("True")),
-            source: if text(r, "source") == "system" {
-                "system"
-            } else {
-                "user"
-            },
+        .map(|r| {
+            let name = text(r, "name");
+            let command = text(r, "command");
+            StartupItem {
+                essential: essential(&name, &command),
+                name,
+                command,
+                enabled: r
+                    .get("enabled")
+                    .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("True")),
+                source: if text(r, "source") == "system" {
+                    "system"
+                } else {
+                    "user"
+                },
+            }
         })
         .collect())
 }
 
-fn set_startup_items(changes: Vec<StartupChange>) -> bool {
-    let changes: Vec<&StartupChange> = changes.iter().filter(|c| !c.name.is_empty()).collect();
-    if changes.is_empty() {
-        return true;
-    }
-    let script: String = changes
+/// Garde les changements qui visent un programme réellement présent au démarrage, et
+/// jamais la désactivation d'un programme nécessaire.
+fn allowed_changes(changes: Vec<StartupChange>, items: &[StartupItem]) -> Vec<StartupChange> {
+    changes
+        .into_iter()
+        .filter(|c| {
+            let source = match c.source {
+                StartupSource::User => "user",
+                StartupSource::System => "system",
+            };
+            items
+                .iter()
+                .find(|i| i.name == c.name && i.source == source)
+                .is_some_and(|i| c.enabled || i.essential.is_none())
+        })
+        .collect()
+}
+
+fn startup_script(changes: &[&StartupChange]) -> String {
+    changes
         .iter()
         .map(|c| {
             let key = match c.source {
@@ -669,8 +745,30 @@ fn set_startup_items(changes: Vec<StartupChange>) -> bool {
                 ps::quote(&c.name)
             )
         })
-        .collect();
-    ps::run_elevated(&script, SMALL_FIX_TIMEOUT)
+        .collect()
+}
+
+/// Les programmes lancés pour l'utilisateur se changent sans autorisation ; ceux lancés
+/// pour tous les comptes demandent l'autorisation de Windows.
+fn set_startup_items(changes: Vec<StartupChange>) -> bool {
+    let Ok(items) = get_startup_items() else {
+        return false;
+    };
+    let wanted = changes.len();
+    let changes = allowed_changes(changes, &items);
+    if changes.len() != wanted {
+        log::warn!(
+            "[démarrage] {} changement(s) refusé(s)",
+            wanted - changes.len()
+        );
+    }
+    let (user, system): (Vec<&StartupChange>, Vec<&StartupChange>) = changes
+        .iter()
+        .partition(|c| c.source == StartupSource::User);
+    let user_ok = user.is_empty() || ps::run(&startup_script(&user), SMALL_FIX_TIMEOUT).is_ok();
+    let system_ok =
+        system.is_empty() || ps::run_elevated(&startup_script(&system), SMALL_FIX_TIMEOUT);
+    user_ok && system_ok && changes.len() == wanted
 }
 
 #[tauri::command]
@@ -860,6 +958,72 @@ mod tests {
     fn startup_scan_works() {
         let items = get_startup_items().expect("analyse du démarrage");
         println!("{} éléments de démarrage", items.len());
+    }
+
+    fn item(name: &str, source: &'static str, command: &str) -> StartupItem {
+        StartupItem {
+            name: name.into(),
+            command: command.into(),
+            enabled: true,
+            source,
+            essential: essential(name, command),
+        }
+    }
+
+    fn change(name: &str, source: StartupSource, enabled: bool) -> StartupChange {
+        StartupChange {
+            name: name.into(),
+            source,
+            enabled,
+        }
+    }
+
+    #[test]
+    fn essential_programs_are_recognised() {
+        let defender = essential(
+            "SecurityHealth",
+            r"%windir%\system32\SecurityHealthSystray.exe",
+        );
+        assert_eq!(defender.map(|e| e.label), Some("Sécurité Windows"));
+        assert!(
+            essential(
+                "RtkAudUService",
+                r#""C:\Windows\System32\DriverStore\RtkAudUService64.exe" -background"#
+            )
+            .is_some()
+        );
+        assert!(
+            essential(
+                "Spotify",
+                r"C:\Users\x\AppData\Roaming\Spotify\Spotify.exe /minimized"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn startup_changes_are_limited_to_listed_programs() {
+        let items = vec![
+            item("Spotify", "user", r"C:\Spotify.exe"),
+            item("SecurityHealth", "system", r"C:\SecurityHealthSystray.exe"),
+        ];
+        let kept = allowed_changes(
+            vec![
+                change("Spotify", StartupSource::User, false),
+                // Inconnu, ou au mauvais endroit : refusé.
+                change("Inconnu", StartupSource::User, false),
+                change("Spotify", StartupSource::System, false),
+                // Un programme nécessaire ne se désactive pas, mais peut se réactiver.
+                change("SecurityHealth", StartupSource::System, false),
+                change("SecurityHealth", StartupSource::System, true),
+            ],
+            &items,
+        );
+        let names: Vec<(String, bool)> = kept.iter().map(|c| (c.name.clone(), c.enabled)).collect();
+        assert_eq!(
+            names,
+            vec![("Spotify".into(), false), ("SecurityHealth".into(), true)]
+        );
     }
 
     #[test]

@@ -6,7 +6,8 @@ import MainLayout from "./components/layout/MainLayout";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Cleaning  = lazy(() => import("./pages/Cleaning"));
 const Repair    = lazy(() => import("./pages/Repair"));
-const Updates   = lazy(() => import("./pages/Updates"));
+const Applications = lazy(() => import("./pages/Applications"));
+const Drivers   = lazy(() => import("./pages/Drivers"));
 const Settings  = lazy(() => import("./pages/Settings"));
 const NotFound  = lazy(() => import("./pages/NotFound"));
 
@@ -18,8 +19,9 @@ export default function App() {
         <Route element={<MainLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="cleaning" element={<Cleaning />} />
-          {/* La page Mises à jour devient l'onglet Mises à jour d'Applications (#50) */}
-          <Route path="applications" element={<Updates />} />
+          {/* Onglets Mises à jour et Démarrage (?onglet=demarrage) */}
+          <Route path="applications" element={<Applications />} />
+          <Route path="drivers"  element={<Drivers />} />
           <Route path="repair"   element={<Repair />} />
           <Route path="settings" element={<Settings />} />
         </Route>

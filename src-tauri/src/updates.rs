@@ -10,6 +10,7 @@ use crate::{hidden, proc, ps};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 use tauri::ipc::Channel;
@@ -121,6 +122,8 @@ pub struct SoftwareUpdate {
     /// La version installée n'est pas lisible (« Unknown », « < x ») : le programme sera
     /// listé à chaque analyse, même après une vraie mise à jour.
     version_unknown: bool,
+    /// L'application semble ouverte : l'interface la décoche et propose de la fermer.
+    open: bool,
 }
 
 /// Position (en caractères) du début de chaque mot de l'en-tête d'un tableau.
@@ -198,6 +201,7 @@ fn parse_winget_table(output: &str) -> Vec<SoftwareUpdate> {
             name: if name.is_empty() { id.clone() } else { name },
             id,
             version_unknown: is_version_unknown(&current_version),
+            open: false,
             current_version,
             available_version: available,
             source: if source.is_empty() {
@@ -280,8 +284,12 @@ fn get_software(hidden_ids: &[String]) -> SoftwareScan {
         LIST_TIMEOUT,
     ) {
         Ok(run) => {
-            let packages = parse_winget_table(&run.stdout);
+            let mut packages = parse_winget_table(&run.stdout);
             log::info!("[mises à jour] {} programme(s) détecté(s)", packages.len());
+            let open = open_app_descriptions();
+            for p in &mut packages {
+                p.open = matches_open_app(&p.name, &open);
+            }
             let (data, hidden) = split_hidden(packages, hidden_ids);
             SoftwareScan {
                 ok: true,
@@ -745,6 +753,19 @@ fn install_with(
         available_version,
     } in packages
     {
+        if ARRET.load(Ordering::Relaxed) {
+            // Arrêt demandé : ce programme n'est pas installé (et n'entre pas dans le rapport).
+            emit(Progress {
+                id,
+                status: "skipped",
+                reason: None,
+                kind: None,
+                reboot: None,
+                verification: None,
+                slow: None,
+            });
+            continue;
+        }
         emit(Progress {
             id: id.clone(),
             status: "installing",
@@ -881,12 +902,17 @@ fn install_with(
     }
 }
 
+/// Demande d'arrêt (bouton « Arrêter ») : l'installation en cours va jusqu'au bout,
+/// les suivantes ne sont pas lancées.
+static ARRET: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command]
 pub async fn updates_install_software_stream(
     app: AppHandle,
     packages: Vec<Package>,
     on_progress: Channel<Progress>,
 ) -> Result<StreamResult, String> {
+    ARRET.store(false, Ordering::Relaxed);
     blocking(move || {
         let dir = logs_dir(&app);
         install_software_stream(
@@ -898,6 +924,11 @@ pub async fn updates_install_software_stream(
         )
     })
     .await
+}
+
+#[tauri::command(async)]
+pub fn updates_stop() {
+    ARRET.store(true, Ordering::Relaxed);
 }
 
 // ─── Installation avec les droits administrateur ────────────────────────────
@@ -1123,12 +1154,62 @@ fn significant_words(name: &str) -> Vec<String> {
         .collect()
 }
 
-/// Recherche heuristique : il n'existe pas de lien fiable entre un identifiant de paquet
-/// et un processus, donc on compare les mots significatifs du nom du programme à la
-/// description des applications ouvertes. Ni cette application ni ses composants
-/// d'affichage ne sont jamais visés.
-fn close_related_app(name: &str) -> CloseResult {
+/// Noms d'éditeurs : « Microsoft Teams » ne doit pas désigner Edge ou Word.
+const VENDOR_WORDS: &[&str] = &["microsoft", "google", "adobe", "mozilla", "apple"];
+
+/// Mots qui identifient l'application : les mots significatifs sans le nom de l'éditeur
+/// (sauf s'il ne reste que lui, comme pour « Google »).
+fn detection_words(name: &str) -> Vec<String> {
     let words = significant_words(name);
+    let specific: Vec<String> = words
+        .iter()
+        .filter(|w| !VENDOR_WORDS.contains(&w.to_lowercase().as_str()))
+        .cloned()
+        .collect();
+    if specific.is_empty() { words } else { specific }
+        .into_iter()
+        .map(|w| w.to_lowercase())
+        .collect()
+}
+
+/// Vrai si une des applications ouvertes (description en minuscules) contient tous les mots.
+fn matches_open_app(name: &str, open: &[String]) -> bool {
+    let words = detection_words(name);
+    !words.is_empty() && open.iter().any(|hay| words.iter().all(|w| hay.contains(w)))
+}
+
+/// Description (nom, produit, processus) des applications ouvertes avec une fenêtre,
+/// en minuscules. Ni Kernshine ni ses composants d'affichage n'y figurent.
+fn open_app_descriptions() -> Vec<String> {
+    let script = format!(
+        r#"Get-Process | Where-Object {{ $_.Id -ne $PID -and $_.Id -ne {own} -and $_.ProcessName -ne 'msedgewebview2' -and $_.MainWindowHandle -ne 0 }} | ForEach-Object {{
+  try {{ $f = $_.MainModule.FileVersionInfo; "$($f.FileDescription) $($f.ProductName) $($_.ProcessName)" }} catch {{ }}
+}}"#,
+        own = std::process::id()
+    );
+    match ps::run(&script, Duration::from_secs(20)) {
+        Ok(out) => out
+            .lines()
+            .map(|l| l.trim().to_lowercase())
+            .filter(|l| !l.is_empty())
+            .collect(),
+        Err(e) => {
+            log::warn!("[mises à jour] applications ouvertes illisibles : {e}");
+            Vec::new()
+        }
+    }
+}
+
+/// Ferme l'application d'un programme. Sans `force`, elle est fermée comme avec sa croix :
+/// elle peut proposer d'enregistrer, ou rester dans la zone de notification
+/// (`still_open`). Avec `force`, elle est arrêtée : un travail non enregistré est perdu,
+/// l'interface le dit avant de proposer ce choix.
+///
+/// Recherche heuristique : il n'existe pas de lien fiable entre un identifiant de paquet
+/// et un processus, donc on compare les mots du nom du programme à la description des
+/// applications ouvertes. Ni cette application ni ses composants d'affichage ne sont visés.
+fn close_related_app(name: &str, force: bool) -> CloseResult {
+    let words = detection_words(name);
     if words.is_empty() {
         return failure("not_found");
     }
@@ -1137,13 +1218,23 @@ fn close_related_app(name: &str) -> CloseResult {
         .map(|w| ps::quote(w))
         .collect::<Vec<_>>()
         .join(",");
+    let action = if force {
+        "$candidates | Stop-Process -Force -ErrorAction SilentlyContinue\n  Write-Output ('CLOSED:' + $distinct[0])"
+    } else {
+        "foreach ($c in $candidates) { try { [void]$c.CloseMainWindow() } catch { } }\n  \
+         $deadline = (Get-Date).AddSeconds(10)\n  \
+         do { Start-Sleep -Milliseconds 300; $left = @($candidates | Where-Object { $_.Refresh(); -not $_.HasExited }) } while ($left.Count -gt 0 -and (Get-Date) -lt $deadline)\n  \
+         if ($left.Count -gt 0) { Write-Output ('STILL_OPEN:' + $distinct[0]) } else { Write-Output ('CLOSED:' + $distinct[0]) }"
+    };
     let script = format!(
-        r#"$words = @({list}) | ForEach-Object {{ $_.ToLower() }}
+        r#"$words = @({list})
 $candidates = @()
 foreach ($p in (Get-Process | Where-Object {{ $_.Id -ne $PID -and $_.Id -ne {own} -and $_.ProcessName -ne 'msedgewebview2' }})) {{
   try {{ $fvi = $p.MainModule.FileVersionInfo }} catch {{ continue }}
   $hay = ("$($fvi.FileDescription) $($fvi.ProductName) $($p.ProcessName)").ToLower()
-  foreach ($w in $words) {{ if ($hay.Contains($w)) {{ $candidates += $p; break }} }}
+  $all = $true
+  foreach ($w in $words) {{ if (-not $hay.Contains($w)) {{ $all = $false; break }} }}
+  if ($all) {{ $candidates += $p }}
 }}
 $distinct = @($candidates | Select-Object -ExpandProperty ProcessName -Unique)
 if ($distinct.Count -eq 0) {{
@@ -1151,18 +1242,24 @@ if ($distinct.Count -eq 0) {{
 }} elseif ($distinct.Count -gt 1) {{
   Write-Output ('AMBIGUOUS:' + ($distinct -join ','))
 }} else {{
-  $candidates | Stop-Process -Force -ErrorAction SilentlyContinue
-  Write-Output ('KILLED:' + $distinct[0])
+  {action}
 }}"#,
         own = std::process::id()
     );
-    match ps::run(&script, Duration::from_secs(15)) {
+    match ps::run(&script, Duration::from_secs(30)) {
         Ok(out) => {
-            if let Some(process) = out.strip_prefix("KILLED:") {
+            if let Some(process) = out.strip_prefix("CLOSED:") {
                 CloseResult {
                     ok: true,
                     process_name: Some(process.into()),
                     reason: None,
+                    candidates: None,
+                }
+            } else if let Some(process) = out.strip_prefix("STILL_OPEN:") {
+                CloseResult {
+                    ok: false,
+                    process_name: Some(process.into()),
+                    reason: Some("still_open"),
                     candidates: None,
                 }
             } else if let Some(list) = out.strip_prefix("AMBIGUOUS:") {
@@ -1184,8 +1281,11 @@ if ($distinct.Count -eq 0) {{
 }
 
 #[tauri::command]
-pub async fn updates_close_related_app(pkg: NamedPackage) -> Result<CloseResult, String> {
-    blocking(move || close_related_app(&pkg.name)).await
+pub async fn updates_close_related_app(
+    pkg: NamedPackage,
+    force: Option<bool>,
+) -> Result<CloseResult, String> {
+    blocking(move || close_related_app(&pkg.name, force.unwrap_or(false))).await
 }
 
 #[cfg(test)]
@@ -1233,6 +1333,7 @@ mod tests {
                 available_version: "2.46.1".into(),
                 source: "winget".into(),
                 version_unknown: false,
+                open: false,
             }
         );
     }
@@ -1347,8 +1448,31 @@ mod tests {
     }
 
     #[test]
+    fn vendor_names_do_not_match_other_apps() {
+        let open = vec![
+            "microsoft edge microsoft edge msedge".to_string(),
+            "microsoft word microsoft office winword".to_string(),
+        ];
+        assert!(!matches_open_app("Microsoft Teams", &open));
+        assert!(matches_open_app("Microsoft Edge", &open));
+        assert_eq!(
+            detection_words("Adobe Acrobat Reader"),
+            vec!["acrobat", "reader"]
+        );
+        // Il ne reste que l'éditeur : on le garde.
+        assert_eq!(detection_words("Google"), vec!["google"]);
+    }
+
+    #[test]
+    fn every_word_must_match() {
+        let open = vec!["vlc media player vlc media player vlc".to_string()];
+        assert!(matches_open_app("VLC media player", &open));
+        assert!(!matches_open_app("Windows Media Player Legacy", &open));
+    }
+
+    #[test]
     fn closing_an_unknown_app_finds_nothing() {
-        let res = close_related_app("Zzzqqqxx Nonexistent");
+        let res = close_related_app("Zzzqqqxx Nonexistent", false);
         assert!(!res.ok);
         assert_eq!(res.reason, Some("not_found"));
     }
