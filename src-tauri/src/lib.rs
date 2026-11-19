@@ -11,6 +11,7 @@ mod scan;
 mod selfupdate;
 mod settings;
 mod system;
+mod uninstall;
 mod updates;
 
 use std::sync::Arc;
@@ -93,6 +94,10 @@ pub fn run() {
             updates::updates_install_elevated,
             updates::updates_close_related_app,
             updates::updates_stop,
+            uninstall::uninstall_get,
+            uninstall::uninstall_sizes,
+            uninstall::uninstall_run,
+            uninstall::uninstall_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -118,6 +123,7 @@ mod tests {
             ("selfupdate.rs", include_str!("selfupdate.rs")),
             ("settings.rs", include_str!("settings.rs")),
             ("system.rs", include_str!("system.rs")),
+            ("uninstall.rs", include_str!("uninstall.rs")),
             ("updates.rs", include_str!("updates.rs")),
         ];
         let mut found = 0;

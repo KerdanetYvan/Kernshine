@@ -350,6 +350,52 @@ export interface BigFileDeleteResult {
   freedBytes: number;
 }
 
+// ── Désinstallation (uninstall.rs) ───────────────────────────────────────────
+
+/** Un programme installé que l'utilisateur peut désinstaller. */
+export interface InstalledProgram {
+  /** Identifiant de la dernière liste, seul envoyé pour désinstaller. */
+  id: string;
+  name: string;
+  publisher: string | null;
+  /** « 2024-03 » : mois d'installation, s'il est connu. */
+  installed: string | null;
+  sizeBytes: number | null;
+  /** « C: » */
+  drive: string | null;
+  /** Taille inconnue de Windows : Kernshine mesure le dossier (`uninstall_sizes`). */
+  measuring: boolean;
+}
+
+export interface ProgramList {
+  programs: InstalledProgram[];
+  /** Composants nécessaires à Windows ou aux programmes, non proposés. */
+  components: number;
+}
+
+/** Taille mesurée par `uninstall_sizes`, reçue au fil de l'eau (`null` : pas mesurable). */
+export interface MeasuredSize {
+  id: string;
+  sizeBytes: number | null;
+}
+
+/**
+ * `removed` : retiré du PC ; `still_there` : fenêtre fermée ou désinstallation annulée ;
+ * `refused` : autorisation de Windows refusée ; `error` : l'outil ne s'est pas lancé ;
+ * `missing` : plus dans la liste ; `skipped` : arrêt demandé avant lui.
+ */
+export type UninstallStatus = 'removed' | 'still_there' | 'refused' | 'error' | 'missing' | 'skipped';
+
+export interface UninstallProgress {
+  id: string;
+  status: 'running' | UninstallStatus;
+}
+
+export interface UninstallResult {
+  id: string;
+  status: UninstallStatus;
+}
+
 /** Étapes de `selfupdate_install`, reçues au fil de l'eau. */
 export type SelfUpdateEvent =
   | { step: 'downloading'; downloaded: number; total?: number | null }
