@@ -28,7 +28,6 @@ Tu prépares une nouvelle release de Kernshine. Suis ces étapes dans l'ordre, s
    ### Connu
    - ...
    ```
-   **Première release sous le nom Kernshine** (celle qui suit `v0.1.0-alpha.2`) : dans « Modifié », annoncer que Cleaner PC s'appelle désormais Kernshine, et dire aux testeurs de désinstaller Cleaner PC (Paramètres Windows › Applications). Kernshine s'installe à côté et ne reprend pas les réglages ni les programmes masqués. Retirer ce paragraphe une fois cette release publiée.
    N'inclus que les catégories pertinentes (ne mets pas de section vide). Reste dans le ton et le niveau de détail de l'entrée `[0.1.0-alpha.1]` déjà présente — grand public, sans jargon technique, cohérent avec les règles de `CLAUDE.md` sur le vocabulaire utilisateur.
 
 5. **Vérifier `README.md`** : si le tableau "Fonctionnalités" ou toute autre section ne reflète plus l'état réel de l'app (nouveau module, changement de statut), mets-le à jour. Sinon ne touche à rien.

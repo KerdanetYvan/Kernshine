@@ -15,7 +15,7 @@ Nettoyage, réparation et mises à jour en quelques clics — sans jargon techni
 | Nettoyage | Suppression des fichiers temporaires et caches |
 | Réparation | Services Windows, fichiers système, registre, disque |
 | Mises à jour | Logiciels (winget) et pilotes |
-| Paramètres | Démarrage automatique, informations sur l'application |
+| Paramètres | Démarrage automatique, mise à jour de Kernshine, programmes masqués |
 
 ---
 
