@@ -29,7 +29,7 @@ Nettoyage, réparation et mises à jour en quelques clics — sans jargon techni
 ## Installation
 
 1. Télécharger le fichier `.exe` depuis la section [Releases](../../releases)
-2. Lancer l'installeur et suivre les étapes
+2. Lancer l'installeur et suivre les étapes : installer pour vous seul ou pour tous les utilisateurs du PC (Windows demande alors l'autorisation), choisir le dossier, et créer ou non un raccourci sur le bureau
 3. Une fois l'installation terminée, lancez Kernshine depuis le menu Démarrer
 
 ---

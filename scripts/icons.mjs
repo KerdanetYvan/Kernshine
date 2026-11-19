@@ -1,4 +1,5 @@
-// Génère les icônes de l'application à partir du logo Kernshine.
+// Génère les icônes de l'application et les images de l'installeur à partir du
+// logo Kernshine.
 //
 // `tauri icon` produit toutes les tailles depuis un seul dessin. Or la charte
 // demande la version simplifiée du logo sous 32 px (sinon l'éclat et le contour
@@ -6,16 +7,21 @@
 // logo complet, puis on reconstruit `icon.ico` : 16 et 24 px depuis la version
 // simplifiée, 32 px et plus depuis la version complète.
 //
+// Les images de l'installeur (src-tauri/installer/*.bmp) sont assemblées par
+// scripts/installer-images.ps1 à partir des logos dessinés ici.
+//
 // Usage : npm run icons
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const LOGO = 'src/assets/logo/kernshine-mark.svg';
 const LOGO_SIMPLIFIE = 'src/assets/logo/kernshine-mark-simplifie.svg';
+const LOCKUP_COMPACT = 'src/assets/logo/kernshine-lockup-compact.svg';
 const ICONS = 'src-tauri/icons';
+const INSTALLEUR = 'src-tauri/installer';
 const TAILLES_SIMPLIFIEES = [16, 24];
 const TAILLES_COMPLETES = [32, 48, 64, 256];
 
@@ -69,4 +75,40 @@ try {
   console.log(`icon.ico : ${pngs.map((p) => p.size).join(', ')} px`);
 } finally {
   rmSync(tmp, { recursive: true, force: true });
+}
+
+// 3. Images de l'installeur.
+mkdirSync(INSTALLEUR, { recursive: true });
+// `tauri icon` n'accepte qu'un dessin carré : on centre le logo + nom dans un
+// carré, puis on ne garde que la bande utile au moment d'assembler l'image.
+const RENDU = 1024;
+const tmpInstalleur = mkdtempSync(join(tmpdir(), 'kernshine-installeur-'));
+try {
+  const svg = readFileSync(LOCKUP_COMPACT, 'utf8');
+  const [, largeur, hauteur] = svg.match(/<svg width="([\d.]+)" height="([\d.]+)"/).map(Number);
+  const marge = (largeur - hauteur) / 2;
+  const carre = svg.replace(
+    /<svg width="[\d.]+" height="[\d.]+" viewBox="[^"]*"/,
+    `<svg width="${largeur}" height="${largeur}" viewBox="0 ${-marge} ${largeur} ${largeur}"`,
+  );
+  const dossierLockup = join(tmpInstalleur, 'lockup');
+  const dossierLogo = join(tmpInstalleur, 'logo');
+  writeFileSync(join(tmpInstalleur, 'lockup-carre.svg'), carre);
+  tauriIcon([join(tmpInstalleur, 'lockup-carre.svg'), '-o', dossierLockup, '-p', String(RENDU)]);
+  tauriIcon([LOGO, '-o', dossierLogo, '-p', String(RENDU)]);
+
+  execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/installer-images.ps1',
+      '-Lockup', join(dossierLockup, `${RENDU}x${RENDU}.png`),
+      '-LockupTop', String(Math.floor((marge / largeur) * RENDU)),
+      '-LockupHeight', String(Math.ceil((hauteur / largeur) * RENDU)),
+      '-Mark', join(dossierLogo, `${RENDU}x${RENDU}.png`),
+      '-OutDir', INSTALLEUR,
+    ],
+    { stdio: 'inherit' },
+  );
+} finally {
+  rmSync(tmpInstalleur, { recursive: true, force: true });
 }
