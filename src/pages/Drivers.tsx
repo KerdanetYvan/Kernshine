@@ -12,6 +12,7 @@ import EnTetePage from '../components/ui/EnTetePage';
 import FenetreConfirmation from '../components/ui/FenetreConfirmation';
 import Pastille from '../components/ui/Pastille';
 import ProgressionCirculaire from '../components/ui/ProgressionCirculaire';
+import { usePrefs } from '../hooks/usePrefs';
 import BilanPilotes from '../components/pilotes/BilanPilotes';
 import InstallationPilotes, { type EtatEtape } from '../components/pilotes/InstallationPilotes';
 import LignePilote from '../components/pilotes/LignePilote';
@@ -23,6 +24,7 @@ const memoire: { resultat: DriverScan | null; quand: number } = { resultat: null
 
 export default function Drivers() {
   const navigate = useNavigate();
+  const { prefs } = usePrefs();
   const memo = memoire.resultat;
   const [phase, setPhase] = useState<Phase>(memo ? 'liste' : 'accueil');
   const [pilotes, setPilotes] = useState<Driver[]>(memo?.data ?? []);
@@ -140,7 +142,12 @@ export default function Drivers() {
 
     let res: DriverInstallResult | null = null;
     try {
-      res = await invoke<DriverInstallResult>('drivers_install', { ids: choisis.map((p) => p.id), requireRestore: exigerRestauration, onProgress: canal });
+      res = await invoke<DriverInstallResult>('drivers_install', {
+        ids: choisis.map((p) => p.id),
+        restore: prefs.restoreBeforeDrivers,
+        requireRestore: exigerRestauration,
+        onProgress: canal,
+      });
     } catch (e) {
       console.warn('pilotes', e);
     }
@@ -224,6 +231,7 @@ export default function Drivers() {
           sauvegarde={sauvegarde}
           etats={etats}
           enAttenteAutorisation={!debute}
+          avecSauvegarde={prefs.restoreBeforeDrivers}
           arretDemande={arretDemande}
           onArreter={arreter}
         />
@@ -235,6 +243,7 @@ export default function Drivers() {
           etats={etats}
           aRedemarrer={aRedemarrer}
           pointDeRestauration={pointDeRestauration}
+          restaurationDesactivee={!prefs.restoreBeforeDrivers}
           onRedemarrer={() => setConfirmerRedemarrage(true)}
           onVerifier={rechercher}
           onAccueil={() => navigate('/')}
@@ -286,7 +295,9 @@ export default function Drivers() {
           </Carte>
 
           <Bandeau type="info">
-            Un point de restauration est créé avant l'installation : vous pourrez revenir en arrière en cas de problème.
+            {prefs.restoreBeforeDrivers
+              ? "Un point de restauration est créé avant l'installation : vous pourrez revenir en arrière en cas de problème."
+              : "Aucun point de restauration ne sera créé : ce réglage est désactivé dans les Paramètres."}
           </Bandeau>
           {avertissement && <Bandeau type="surveiller">{avertissement}</Bandeau>}
 

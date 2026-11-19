@@ -37,6 +37,33 @@ pub fn settings_set_login_item(app: AppHandle, open_at_login: bool) -> Result<Ac
     Ok(Ack { ok: true })
 }
 
+/// Liens de la section « À propos » : le front n'envoie qu'un nom, jamais une adresse.
+const LINKS: &[(&str, &str)] = &[
+    ("source", "https://github.com/KerdanetYvan/Kernshine"),
+    (
+        "probleme",
+        "https://github.com/KerdanetYvan/Kernshine/issues/new",
+    ),
+    (
+        "licence",
+        "https://github.com/KerdanetYvan/Kernshine/blob/main/LICENSE",
+    ),
+];
+
+fn link_url(name: &str) -> Option<&'static str> {
+    LINKS.iter().find(|(n, _)| *n == name).map(|(_, url)| *url)
+}
+
+/// Ouvre un lien de la section « À propos » dans le navigateur.
+#[tauri::command(async)]
+pub fn settings_open_link(app: AppHandle, name: String) -> Result<(), String> {
+    let url = link_url(&name).ok_or("Lien inconnu")?;
+    app.opener().open_url(url, None::<&str>).map_err(|e| {
+        log::warn!("lien non ouvert : {e}");
+        "Le lien n'a pas pu s'ouvrir. Réessayez.".to_string()
+    })
+}
+
 /// Ouvre un rapport (.log) du dossier de journaux de l'application, et rien d'autre.
 /// Renvoie un message d'erreur, ou une chaîne vide si tout s'est bien passé.
 #[tauri::command(async)]
@@ -60,5 +87,24 @@ pub fn shell_open_log(app: AppHandle, path: String) -> String {
     match app.opener().open_path(file.to_string_lossy(), None::<&str>) {
         Ok(()) => String::new(),
         Err(e) => e.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_known_links_open() {
+        assert_eq!(
+            link_url("source"),
+            Some("https://github.com/KerdanetYvan/Kernshine")
+        );
+        assert!(link_url("https://exemple.com").is_none());
+        assert!(
+            LINKS
+                .iter()
+                .all(|(_, url)| url.starts_with("https://github.com/KerdanetYvan/Kernshine"))
+        );
     }
 }

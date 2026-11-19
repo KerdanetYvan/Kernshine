@@ -12,6 +12,8 @@ interface InstallationPilotesProps {
   etats: Map<string, EtatEtape>;
   /** Rien n'a encore commencé : Windows attend l'autorisation de l'utilisateur. */
   enAttenteAutorisation: boolean;
+  /** Point de restauration avant les pilotes (réglage des Paramètres). */
+  avecSauvegarde: boolean;
   arretDemande: boolean;
   onArreter: () => void;
 }
@@ -25,8 +27,11 @@ const apparence: Record<EtatEtape, { Icone: typeof CheckCircleIcon; couleur: str
 };
 
 /** Installation des pilotes un par un (Figma : « Pilotes – En cours »). */
-export default function InstallationPilotes({ pilotes, sauvegarde, etats, enAttenteAutorisation, arretDemande, onArreter }: InstallationPilotesProps) {
-  const etapes = [{ id: 'sauvegarde', nom: 'Sauvegarde de sécurité', etat: sauvegarde }, ...pilotes.map((p) => ({ id: p.id, nom: p.name, etat: etats.get(p.id) ?? 'attente' }))];
+export default function InstallationPilotes({ pilotes, sauvegarde, etats, enAttenteAutorisation, avecSauvegarde, arretDemande, onArreter }: InstallationPilotesProps) {
+  const etapes = [
+    ...(avecSauvegarde ? [{ id: 'sauvegarde', nom: 'Sauvegarde de sécurité', etat: sauvegarde }] : []),
+    ...pilotes.map((p) => ({ id: p.id, nom: p.name, etat: etats.get(p.id) ?? 'attente' })),
+  ];
   const faites = etapes.filter((e) => e.etat !== 'attente' && e.etat !== 'en_cours').length;
   const indexCourant = etapes.findIndex((e) => e.etat === 'en_cours');
   const courante = indexCourant >= 0 ? etapes[indexCourant] : undefined;
@@ -50,8 +55,8 @@ export default function InstallationPilotes({ pilotes, sauvegarde, etats, enAtte
           <p className="font-titre text-titre-3 text-primary">{titre}</p>
           <p className="text-corps text-secondary">
             {enAttenteAutorisation
-              ? 'Cliquez sur « Oui » pour créer la sauvegarde de sécurité et installer les pilotes.'
-              : `${courante ? `Étape ${indexCourant + 1} sur ${etapes.length}. ` : ''}Un seul pilote à la fois, avec une sauvegarde de sécurité avant. L'écran peut clignoter un instant.`}
+              ? `Cliquez sur « Oui » pour ${avecSauvegarde ? 'créer la sauvegarde de sécurité et ' : ''}installer les pilotes.`
+              : `${courante ? `Étape ${indexCourant + 1} sur ${etapes.length}. ` : ''}Un seul pilote à la fois${avecSauvegarde ? ', avec une sauvegarde de sécurité avant' : ''}. L'écran peut clignoter un instant.`}
           </p>
         </div>
 
