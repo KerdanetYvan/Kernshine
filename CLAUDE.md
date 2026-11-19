@@ -89,6 +89,7 @@ src-tauri/
     diagnose.rs        # Échecs d'installation : message simple + type (bouton à proposer)
     report.rs          # Rapport de chaque session de mise à jour (versions avant / attendue / après)
     settings.rs        # Version, lancement avec Windows, ouverture d'un rapport
+    selfupdate.rs      # Mise à jour de Kernshine lui-même (vérifier, télécharger, installer)
     hidden.rs          # Programmes masqués dans les mises à jour (hidden-updates.json)
     ps.rs              # PowerShell : normal, administrateur, résultat, échappement
     proc.rs            # Processus sans console, délais, capture des sorties
@@ -196,14 +197,20 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Cleaning | Fonctionnel | 15 dossiers connus, détection des applications ouvertes, passage administrateur si besoin |
 | Repair | Fonctionnel | Services, fichiers système, périphériques, registre, démarrage, disques |
 | Updates | Fonctionnel | Logiciels via winget (progression en continu), pilotes via Windows Update |
-| Settings | Partiel | Version et lancement avec Windows ; thème, langue, télémétrie à venir |
+| Settings | Partiel | Version, mise à jour de Kernshine, lancement avec Windows ; thème, langue, télémétrie à venir |
 
 ## Points d'attention
 
 - **Logo et icônes** : le logo est dans `src/assets/logo/` (version complète et version simplifiée, variante claire du brand board). Les icônes de `src-tauri/icons/` se régénèrent avec `npm run icons` (`scripts/icons.mjs`), jamais avec `tauri icon` seul : le script reconstruit `icon.ico` avec la version simplifiée en 16 et 24 px, comme le demande la charte sous 32 px. Dans l'interface, utiliser aussi la version simplifiée sous 32 px.
 - **Installeur** : le NSIS intégré à Tauri (`bundle > windows > nsis` dans `tauri.conf.json`), pas de modèle personnalisé. `installMode: both` : l'utilisateur choisit « pour moi » (`%LOCALAPPDATA%\Programs\Kernshine`, sans autorisation) ou « pour tous » (Program Files, Windows demande l'autorisation), puis le dossier. La page de fin propose le raccourci sur le bureau ; la désinstallation propose d'effacer les données. Images dans `src-tauri/installer/` (régénérées par `npm run icons`).
 - **Étapes ajoutées à l'installeur** : `src-tauri/installer/hooks.nsh` (macros `NSIS_HOOK_*` de Tauri). Aujourd'hui : retirer le lancement avec Windows à la désinstallation. Toujours tester `$UpdateMode` : une mise à jour passe aussi par la désinstallation de l'ancienne version. Test sans autorisation : `setup.exe /S /CURRENTUSER`, puis `/S /CURRENTUSER /UPDATE`, puis `uninstall.exe /S _?=<dossier>`.
-- **Signature** : l'installeur n'est pas signé (avertissement SmartScreen).
+- **Signature** : l'installeur n'est pas signé par un certificat Windows (avertissement SmartScreen). À ne pas confondre avec la signature des mises à jour ci-dessous.
+- **Mises à jour de Kernshine** (`selfupdate.rs`, module `tauri-plugin-updater`) :
+  - L'app lit `https://github.com/KerdanetYvan/Kernshine/releases/download/canal-alpha/latest.json` (`plugins > updater` dans `tauri.conf.json`). GitHub ignore les pré-versions dans « latest » : la release fixe `canal-alpha` porte ce fichier, la CI de release le remplace à chaque version. **Ne pas supprimer cette release.**
+  - Chaque installeur est signé ; l'app refuse une mise à jour dont la signature ne correspond pas à la clé publique (`plugins > updater > pubkey`). La clé privée et son mot de passe sont dans les secrets GitHub `TAURI_SIGNING_PRIVATE_KEY` et `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` ; une copie est chez le mainteneur (`%USERPROFILE%.taurikernshine.key`). **Perdre la clé privée = plus aucune mise à jour possible pour les apps installées.**
+  - La signature n'est activée qu'en release (`--config src-tauri/tauri.release.conf.json`) : `npm run build` en local n'a pas besoin de la clé.
+  - Installation en mode passif avec `/R` (l'app redémarre après la mise à jour). Rien n'est installé sans que l'utilisateur clique sur « Installer la mise à jour » (Paramètres) ; au démarrage, un simple bandeau le prévient.
+  - Le front n'a accès qu'à `selfupdate_check` et `selfupdate_install` : l'adresse des mises à jour et la version à installer ne viennent jamais de lui.
 - **Dossier de données** : `%APPDATA%\fr.kernshine.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes masqués dans `hidden-updates.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier. L'ancien `fr.cleanerpc.desktop` (alphas Cleaner PC) n'est pas repris : seuls des testeurs les ont installées.
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.
