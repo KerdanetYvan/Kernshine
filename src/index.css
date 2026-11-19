@@ -2,19 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  font-family: system-ui, Helvetica, Arial, sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@layer base {
+  /* Couleurs de la charte (Figma, page « Fondations », mode clair).
+     Canaux RVB séparés par des espaces pour garder l'opacité de Tailwind
+     (bg-page/50). Le thème sombre redéfinira ces variables. */
+  :root {
+    color-scheme: light;
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  overflow: hidden;
+    --color-bg-page: 253 251 247;        /* #FDFBF7 sable clair */
+    --color-bg-surface: 255 255 255;     /* #FFFFFF */
+    --color-bg-subtle: 246 240 228;      /* #F6F0E4 sable */
+    --color-bg-neutral: 245 247 250;     /* #F5F7FA */
+    --color-bg-inverse: 36 48 74;        /* #24304A ardoise */
+
+    --color-text-primary: 36 48 74;      /* #24304A ardoise */
+    --color-text-secondary: 71 86 118;   /* #475676 */
+    --color-text-muted: 91 106 137;      /* #5B6A89 */
+    --color-text-inverse: 253 251 247;   /* #FDFBF7 */
+    --color-text-accent: 138 90 0;       /* #8A5A00 */
+
+    --color-border-default: 227 232 240; /* #E3E8F0 */
+    --color-border-strong: 205 213 227;  /* #CDD5E3 */
+
+    --color-brand-accent: 246 196 90;    /* #F6C45A or */
+    --color-brand-on-accent: 36 48 74;   /* #24304A */
+    --color-brand-shield-fill: 227 220 245;   /* #E3DCF5 lilas doux */
+    --color-brand-shield-stroke: 116 97 176;  /* #7461B0 lilas */
+
+    --color-action-primary-bg: 116 97 176;    /* #7461B0 lilas */
+    --color-action-primary-fg: 255 255 255;   /* #FFFFFF */
+
+    --color-status-ok-fg: 31 122 85;     /* #1F7A55 */
+    --color-status-ok-bg: 221 243 231;   /* #DDF3E7 */
+    --color-status-warning-fg: 138 90 0; /* #8A5A00 */
+    --color-status-warning-bg: 254 244 216; /* #FEF4D8 */
+    --color-status-danger-fg: 178 58 42; /* #B23A2A */
+    --color-status-danger-bg: 252 228 223; /* #FCE4DF */
+    --color-status-info-fg: 58 91 160;   /* #3A5BA0 */
+    --color-status-info-bg: 226 237 251; /* #E2EDFB */
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Texte courant : Manrope Medium 16 px (style « Corps »). */
+  body {
+    @apply m-0 min-h-screen overflow-hidden bg-page font-sans text-corps text-primary;
+  }
+
+  h1, h2, h3 {
+    @apply font-titre;
+  }
 }
 
 .drag-region    { -webkit-app-region: drag; }
