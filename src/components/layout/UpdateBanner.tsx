@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Link, useLocation } from 'react-router-dom';
-import { SparkleIcon, XIcon } from '@phosphor-icons/react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { SelfUpdateCheck } from '../../types/commands';
+import Bandeau from '../ui/Bandeau';
 
 /** Laisse l'app démarrer et les premières analyses partir avant de vérifier. */
 const DELAI_MS = 5000;
@@ -16,6 +16,7 @@ export default function UpdateBanner() {
   const [version, setVersion] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -35,17 +36,12 @@ export default function UpdateBanner() {
   if (!version || closed || pathname === '/settings') return null;
 
   return (
-    <div className="mb-6 flex items-center gap-3 rounded-lg border bg-status-info-bg px-4 py-3 text-status-info-fg">
-      <SparkleIcon weight="duotone" className="h-5 w-5 flex-shrink-0" />
-      <p className="flex-1 text-corps-petit">
-        Une nouvelle version de Kernshine est disponible ({version}).
-      </p>
-      <Link to="/settings" className="text-libelle underline underline-offset-2">
-        Voir la mise à jour
-      </Link>
-      <button onClick={() => setClosed(true)} aria-label="Plus tard" title="Plus tard" className="rounded-sm p-1">
-        <XIcon className="h-4 w-4" />
-      </button>
-    </div>
+    <Bandeau
+      type="info"
+      action={{ libelle: 'Voir la mise à jour', onClick: () => navigate('/settings') }}
+      onFermer={() => setClosed(true)}
+    >
+      Une nouvelle version de Kernshine est disponible ({version}).
+    </Bandeau>
   );
 }

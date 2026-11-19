@@ -2,6 +2,7 @@
 import { CaretDownIcon, CaretUpIcon, CheckCircleIcon, ClockIcon, CpuIcon, DatabaseIcon, HardDriveIcon, MagnifyingGlassIcon, RocketIcon, ShieldCheckIcon, WarningCircleIcon, WrenchIcon, XCircleIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ServiceInfo, ServiceScanResult, RepairResult, SFCResult, DriverError, DriverErrorScanResult, RegistryIssue, RegistryScanResult, StartupItem, StartupScanResult, StartupChange, DiskDevice, DiskHealthResult, Ack } from '../types/commands';
+import EnTetePage from '../components/ui/EnTetePage';
 
 // ── Types locaux ──────────────────────────────────────────────────────────────
 
@@ -265,13 +266,7 @@ export default function Repair() {
   return (
     <section className="space-y-8">
 
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold">Réparation</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">
-          Diagnostic et correctifs des composants système
-        </p>
-      </div>
+      <EnTetePage titre="Réparation" sousTitre="Remettez Windows d'aplomb quand quelque chose ne va pas." />
 
       {/* ══ Programmes essentiels ══════════════════════════════════════════════ */}
       <div className="space-y-3">

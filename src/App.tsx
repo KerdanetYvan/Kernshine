@@ -2,7 +2,7 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 
-// Code splitting par page (optionnel mais conseillé)
+// Chaque page est chargée à la demande.
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Cleaning  = lazy(() => import("./pages/Cleaning"));
 const Repair    = lazy(() => import("./pages/Repair"));
@@ -12,21 +12,20 @@ const NotFound  = lazy(() => import("./pages/NotFound"));
 
 export default function App() {
   return (
-    // Suspense affiche un fallback le temps de charger les pages en lazy
-    <Suspense fallback={<div className="p-6">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-secondary">Chargement…</div>}>
       <Routes>
-        {/* Toutes les pages partagent le même layout */}
+        {/* Toutes les pages partagent le même cadre */}
         <Route element={<MainLayout />}>
-          {/* Index = / => Dashboard */}
           <Route index element={<Dashboard />} />
-          {/* Routes principales */}
           <Route path="cleaning" element={<Cleaning />} />
+          {/* La page Mises à jour devient l'onglet Mises à jour d'Applications (#50) */}
+          <Route path="applications" element={<Updates />} />
           <Route path="repair"   element={<Repair />} />
-          <Route path="updates"  element={<Updates />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 
-        {/* Redirection “/home” -> “/” (facultatif) */}
+        {/* Anciennes adresses */}
+        <Route path="updates" element={<Navigate to="/applications" replace />} />
         <Route path="home" element={<Navigate to="/" replace />} />
 
         {/* 404 */}

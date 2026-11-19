@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import type { SystemInfo, StatPoint } from '../types/commands';
+import EnTetePage from '../components/ui/EnTetePage';
 
 function SparkLine({ points, color }: { points: number[], color: string }) {
   if (points.length < 2) return null;
@@ -49,7 +50,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <EnTetePage titre="Accueil" sousTitre="L'état de votre ordinateur, en direct." />
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neutral-900"></div>
         </div>
@@ -59,7 +60,7 @@ export default function Dashboard() {
 
   return (
     <section className="space-y-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <EnTetePage titre="Accueil" sousTitre="L'état de votre ordinateur, en direct." />
 
       {systemInfo && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

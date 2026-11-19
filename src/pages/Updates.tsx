@@ -2,6 +2,8 @@ import { Fragment, useState } from 'react';
 import { ArrowsClockwiseIcon, CaretDownIcon, CaretRightIcon, CheckCircleIcon, CheckSquareIcon, CpuIcon, DownloadSimpleIcon, EyeSlashIcon, MagnifyingGlassIcon, PackageIcon, PowerIcon, SquareIcon, WarningCircleIcon, WarningIcon, XCircleIcon } from '@phosphor-icons/react';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { SoftwareUpdate, DriverUpdate, InstallResult, SoftwareScanResult, UpdatesListResult, SwProgress, Verification, FailureKind, StreamResult, ElevatedInstallResult, CloseAppResult } from '../types/commands';
+import Bouton from '../components/ui/Bouton';
+import EnTetePage from '../components/ui/EnTetePage';
 
 type PagePhase    = 'idle' | 'scanning' | 'results';
 type InstallPhase = 'idle' | 'installing' | 'done';
@@ -200,25 +202,18 @@ export default function Updates() {
   return (
     <section className="space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Mises à jour</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">
-            Logiciels et pilotes de votre PC
-          </p>
-        </div>
-
-        {(page === 'idle' || page === 'results') && (
-          <button
-            onClick={scan}
-            className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-          >
-            <MagnifyingGlassIcon className="h-4 w-4" />
-            {page === 'results' ? 'Rescanner' : 'Scanner'}
-          </button>
-        )}
-      </div>
+      <EnTetePage
+        titre="Mises à jour"
+        sousTitre="Gardez vos applications à jour : plus de sécurité, moins de bogues."
+        actions={
+          (page === 'idle' || page === 'results') && (
+            <Bouton variante="secondaire" taille="compact" onClick={scan}>
+              <MagnifyingGlassIcon className="size-5" />
+              {page === 'results' ? 'Rescanner' : 'Scanner'}
+            </Bouton>
+          )
+        }
+      />
 
       {/* Scanning */}
       {page === 'scanning' && (
