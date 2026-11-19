@@ -89,9 +89,10 @@ src-tauri/
     drivers.rs         # Pilotes (Windows Update) : noms simples, point de restauration, installation un par un
     diagnose.rs        # Échecs d'installation : message simple + type (bouton à proposer)
     report.rs          # Rapport de chaque session de mise à jour (versions avant / attendue / après)
-    settings.rs        # Version, lancement avec Windows, ouverture d'un rapport
+    settings.rs        # Version, lancement avec Windows, liens « À propos » (liste fermée), ouverture d'un rapport
+    prefs.rs           # Préférences de l'utilisateur (preferences.json) : mises à jour automatiques, point de restauration
     selfupdate.rs      # Mise à jour de Kernshine lui-même (vérifier, télécharger, installer)
-    hidden.rs          # Programmes masqués dans les mises à jour (hidden-updates.json)
+    hidden.rs          # Programmes et pilotes masqués (hidden-updates.json, pilotes préfixés « pilote: »)
     ps.rs              # PowerShell : normal, administrateur, résultat, échappement
     proc.rs            # Processus sans console, délais, capture des sorties
 
@@ -215,7 +216,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`) |
 | Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
 | Repair | Refaite (#52) | Une analyse au clic (programmes essentiels, périphériques, programmes fantômes, disques), résultats gardés en mémoire et triés en À corriger / Tout va bien ; chaque réparation relance l'analyse de sa zone. Fichiers système en « vérification approfondie », à la demande. Écrans validés dans le Figma (pas de maquette d'origine) |
-| Settings | Partiel | Version, mise à jour de Kernshine, lancement avec Windows ; thème, langue, télémétrie à venir |
+| Settings | Refaite (#53) | Démarrage (lancer avec Windows), Sécurité (point de restauration avant les pilotes), Mises à jour (automatiques, désactivées par défaut ; version et « Installer »), À propos. Thème sombre grisé jusqu'à l'Accueil refait (#54) ; Entretien et Gros fichiers arriveront avec #58 et #55 ; Langue masquée (français seulement) |
 
 ## Points d'attention
 
@@ -227,8 +228,8 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
   - L'app lit `https://github.com/KerdanetYvan/Kernshine/releases/download/canal-alpha/latest.json` (`plugins > updater` dans `tauri.conf.json`). GitHub ignore les pré-versions dans « latest » : la release fixe `canal-alpha` porte ce fichier, la CI de release le remplace à chaque version. **Ne pas supprimer cette release.**
   - Chaque installeur est signé ; l'app refuse une mise à jour dont la signature ne correspond pas à la clé publique (`plugins > updater > pubkey`). La clé privée et son mot de passe sont dans les secrets GitHub `TAURI_SIGNING_PRIVATE_KEY` et `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` ; une copie est chez le mainteneur (`%USERPROFILE%.taurikernshine.key`). **Perdre la clé privée = plus aucune mise à jour possible pour les apps installées.**
   - La signature n'est activée qu'en release (`--config src-tauri/tauri.release.conf.json`) : `npm run build` en local n'a pas besoin de la clé.
-  - Installation en mode passif avec `/R` (l'app redémarre après la mise à jour). Rien n'est installé sans que l'utilisateur clique sur « Installer la mise à jour » (Paramètres) ; au démarrage, un simple bandeau le prévient.
+  - Installation en mode passif avec `/R` (l'app redémarre après la mise à jour). Par défaut, rien n'est installé sans que l'utilisateur clique sur « Installer » (Paramètres) ; au démarrage, un simple bandeau le prévient. Seule exception : le réglage « Mises à jour automatiques » (désactivé par défaut, `prefs.rs`), que l'utilisateur active lui-même ; le bandeau annonce alors l'installation.
   - Le front n'a accès qu'à `selfupdate_check` et `selfupdate_install` : l'adresse des mises à jour et la version à installer ne viennent jamais de lui.
-- **Dossier de données** : `%APPDATA%\fr.kernshine.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes masqués dans `hidden-updates.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier. L'ancien `fr.cleanerpc.desktop` (alphas Cleaner PC) n'est pas repris : seuls des testeurs les ont installées.
+- **Dossier de données** : `%APPDATA%\fr.kernshine.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes et pilotes masqués dans `hidden-updates.json` ; préférences dans `preferences.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier. L'ancien `fr.cleanerpc.desktop` (alphas Cleaner PC) n'est pas repris : seuls des testeurs les ont installées.
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.

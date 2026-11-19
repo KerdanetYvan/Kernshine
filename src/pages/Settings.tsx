@@ -1,195 +1,127 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SettingsInfo } from '../types/commands';
-import { ArrowSquareOutIcon, ArrowsClockwiseIcon, ChartBarIcon, ClockIcon, GlobeIcon, InfoIcon, MoonIcon, RocketIcon, SparkleIcon } from '@phosphor-icons/react';
-import SelfUpdatePanel from '../components/SelfUpdatePanel';
+import { ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, GithubLogoIcon, LightningIcon, ScalesIcon, WarningIcon } from '@phosphor-icons/react';
+import type { Ack, SettingsInfo } from '../types/commands';
+import { usePrefs } from '../hooks/usePrefs';
+import Bandeau from '../components/ui/Bandeau';
 import EnTetePage from '../components/ui/EnTetePage';
+import Interrupteur from '../components/ui/Interrupteur';
+import CarteTheme from '../components/parametres/CarteTheme';
+import LigneReglage from '../components/parametres/LigneReglage';
+import LigneVersion from '../components/parametres/LigneVersion';
 
-function SectionDivider() {
-  return <div className="border-t border-neutral-200" />;
-}
-
-interface ToggleRowProps {
-  label:       string;
-  description: string;
-  checked:     boolean;
-  onChange?:   (v: boolean) => void;
-  disabled?:   boolean;
-  loading?:    boolean;
-}
-
-function ToggleRow({ label, description, checked, onChange, disabled = false, loading = false }: ToggleRowProps) {
+function Section({ titre, description, children }: { titre: string; description?: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-6 py-1">
-      <div>
-        <p className={['font-medium text-sm', disabled ? 'text-neutral-400' : 'text-neutral-900'].join(' ')}>
-          {label}
-        </p>
-        <p className="text-xs text-neutral-400 mt-0.5">{description}</p>
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-titre-3 text-primary">{titre}</h2>
+        {description && <p className="text-corps-petit text-secondary">{description}</p>}
       </div>
-      <button
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled || loading}
-        onClick={() => onChange?.(!checked)}
-        className={[
-          'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200',
-          disabled || loading ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-          checked && !disabled ? 'bg-neutral-900' : 'bg-neutral-300',
-        ].join(' ')}
-      >
-        <span className={[
-          'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200',
-          checked ? 'translate-x-4' : 'translate-x-0',
-        ].join(' ')} />
-      </button>
-    </div>
+      <div className="flex flex-col gap-3">{children}</div>
+    </section>
   );
 }
 
+/**
+ * Paramètres (Figma : « Paramètres »). Entretien, Gros fichiers et Langue arriveront avec
+ * leurs fonctions (#58, #55) ; le thème sombre avec l'Accueil refait (#54).
+ */
 export default function Settings() {
-  const [version,     setVersion]     = useState<string>('…');
-  const [openAtLogin, setOpenAtLogin] = useState(false);
-  const [toggling,    setToggling]    = useState(false);
-  const [hiddenCount, setHiddenCount] = useState(0);
-  const [hiddenError, setHiddenError] = useState(false);
+  const { prefs, pret, changer, erreur } = usePrefs();
+  const [info, setInfo] = useState<SettingsInfo | null>(null);
+  const [lancementEnCours, setLancementEnCours] = useState(false);
+  const [erreurLancement, setErreurLancement] = useState<string | null>(null);
+  const [erreurLien, setErreurLien] = useState<string | null>(null);
 
   useEffect(() => {
-    invoke<SettingsInfo>('settings_get_info').then(info => {
-      setVersion(info.version);
-      setOpenAtLogin(info.openAtLogin);
-    });
-    invoke<string[]>('updates_get_hidden').then(ids => setHiddenCount(ids.length)).catch(() => {});
+    invoke<SettingsInfo>('settings_get_info').then(setInfo).catch(() => {});
   }, []);
 
-  const showAgainAll = async () => {
+  const lancerAvecWindows = async (actif: boolean) => {
+    if (!info) return;
+    setLancementEnCours(true);
+    setInfo({ ...info, openAtLogin: actif });
     try {
-      await invoke<string[]>('updates_unhide_all');
-      setHiddenCount(0);
-      setHiddenError(false);
+      await invoke<Ack>('settings_set_login_item', { openAtLogin: actif });
+      setErreurLancement(null);
     } catch {
-      setHiddenError(true);
+      setInfo({ ...info, openAtLogin: !actif });
+      setErreurLancement("Le réglage n'a pas pu être changé. Réessayez.");
     }
+    setLancementEnCours(false);
   };
 
-  const handleLoginItem = async (v: boolean) => {
-    setToggling(true);
-    setOpenAtLogin(v);
-    await invoke('settings_set_login_item', { openAtLogin: v });
-    setToggling(false);
-  };
+  const ouvrir = (nom: 'source' | 'probleme' | 'licence') =>
+    invoke('settings_open_link', { name: nom })
+      .then(() => setErreurLien(null))
+      .catch((e) => setErreurLien(typeof e === 'string' ? e : "Le lien n'a pas pu s'ouvrir. Réessayez."));
 
   return (
-    <section className="space-y-8">
-
+    <section className="flex flex-col gap-8">
       <EnTetePage titre="Paramètres" sousTitre="Réglez Kernshine à votre façon." />
 
-      {/* ══ Apparence ══════════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <MoonIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-          <h2 className="text-lg font-semibold">Apparence</h2>
+      {(erreur || erreurLancement) && <Bandeau type="corriger">{erreur ?? erreurLancement}</Bandeau>}
+
+      <Section titre="Apparence" description="Choisissez l'aspect de Kernshine. Le thème sombre arrive bientôt.">
+        <div role="radiogroup" aria-label="Thème" className="flex flex-wrap gap-6">
+          <CarteTheme theme="clair" choisi onChoisir={() => {}} />
+          <CarteTheme theme="sombre" choisi={false} bientot onChoisir={() => {}} />
+          <CarteTheme theme="automatique" choisi={false} bientot onChoisir={() => {}} />
         </div>
-        <ToggleRow
-          label="Thème sombre"
-          description="Réduire la luminosité de l'interface pour un confort de lecture en basse lumière"
-          checked={false}
-          disabled={true}
-        />
-      </div>
+      </Section>
 
-      <SectionDivider />
+      <Section titre="Démarrage" description="Kernshine peut s'ouvrir tout seul quand vous allumez votre PC.">
+        <LigneReglage
+          icone={LightningIcon}
+          titre="Lancer Kernshine avec Windows"
+          description="Kernshine s'ouvre quand vous ouvrez votre session, prêt à surveiller votre PC."
+        >
+          <Interrupteur
+            active={info?.openAtLogin ?? false}
+            onChange={lancerAvecWindows}
+            libelle="Lancer Kernshine avec Windows"
+            disabled={!info || lancementEnCours}
+          />
+        </LigneReglage>
+      </Section>
 
-      {/* ══ Démarrage ══════════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <RocketIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-          <h2 className="text-lg font-semibold">Démarrage</h2>
-        </div>
-        <ToggleRow
-          label="Lancer Kernshine au démarrage de Windows"
-          description="L'application démarre automatiquement quand vous allumez votre PC"
-          checked={openAtLogin}
-          onChange={handleLoginItem}
-          loading={toggling}
-        />
-      </div>
+      <Section titre="Sécurité" description="Un filet de sécurité avant les changements importants.">
+        <LigneReglage
+          icone={ArrowCounterClockwiseIcon}
+          titre="Point de restauration avant les pilotes"
+          description="Si une mise à jour de pilote pose problème, vous pourrez revenir en arrière. Nous vous conseillons de le laisser activé."
+        >
+          <Interrupteur
+            active={prefs.restoreBeforeDrivers}
+            onChange={(a) => changer({ restoreBeforeDrivers: a })}
+            libelle="Point de restauration avant les pilotes"
+            disabled={!pret}
+          />
+        </LigneReglage>
+      </Section>
 
-      <SectionDivider />
+      <Section titre="Mises à jour">
+        <LigneReglage
+          icone={ArrowsClockwiseIcon}
+          titre="Mises à jour automatiques"
+          description="Kernshine installe lui-même ses nouvelles versions au démarrage, puis redémarre."
+        >
+          <Interrupteur
+            active={prefs.autoUpdate}
+            onChange={(a) => changer({ autoUpdate: a })}
+            libelle="Mises à jour automatiques"
+            disabled={!pret}
+          />
+        </LigneReglage>
+        {info && <LigneVersion version={info.version} />}
+      </Section>
 
-      {/* ══ Mises à jour ═══════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <ArrowsClockwiseIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-          <h2 className="text-lg font-semibold">Mises à jour</h2>
-        </div>
-        <div className="flex items-center justify-between gap-6 py-1">
-          <div>
-            <p className="font-medium text-sm text-neutral-900">Programmes masqués</p>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              {hiddenCount === 0
-                ? "Aucun programme masqué : tous les programmes à mettre à jour vous sont proposés"
-                : `${hiddenCount} programme${hiddenCount > 1 ? 's ne vous sont plus proposés' : ' ne vous est plus proposé'}`}
-            </p>
-            {hiddenError && (
-              <p className="text-xs text-red-600 mt-0.5">Une erreur est survenue, réessayez</p>
-            )}
-          </div>
-          <button
-            onClick={showAgainAll}
-            disabled={hiddenCount === 0}
-            className="flex-shrink-0 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Tout proposer à nouveau
-          </button>
-        </div>
-      </div>
-
-      <SectionDivider />
-
-      {/* ══ À propos ═══════════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <InfoIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-          <h2 className="text-lg font-semibold">À propos</h2>
-        </div>
-        <div className="flex items-center justify-between py-1">
-          <p className="text-sm text-neutral-500">Version</p>
-          <span className="text-sm font-medium text-neutral-700">{version}</span>
-        </div>
-        <SelfUpdatePanel />
-      </div>
-
-      <SectionDivider />
-
-      {/* ══ Fonctionnalités à venir ════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <SparkleIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-          <h2 className="text-lg font-semibold">Bientôt disponible</h2>
-        </div>
-        <p className="text-sm text-neutral-500">
-          Ces fonctionnalités sont en cours de développement et seront ajoutées dans une prochaine version.
-        </p>
-        <div className="bg-neutral-50 border border-neutral-200 rounded-lg divide-y divide-neutral-200">
-          {[
-            { icon: MoonIcon,         label: 'Thème sombre',             detail: 'Interface adaptée aux environnements sombres' },
-            { icon: GlobeIcon,        label: 'Langues supplémentaires',   detail: 'Anglais, espagnol et plus encore' },
-            { icon: ClockIcon,        label: 'Nettoyage automatique',     detail: 'Planifiez un nettoyage régulier sans y penser' },
-            { icon: ChartBarIcon,    label: 'Rapports d\'utilisation',   detail: 'Statistiques anonymes pour améliorer Kernshine (opt-in)' },
-            { icon: ArrowSquareOutIcon, label: 'Espace en ligne',           detail: 'Compte Kernshine, synchronisation et fonctionnalités premium' },
-          ].map(({ icon: Icon, label, detail }) => (
-            <div key={label} className="flex items-center gap-4 px-4 py-3">
-              <Icon className="h-4 w-4 text-neutral-400 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-neutral-600">{label}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">{detail}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
+      <Section titre="À propos" description="Kernshine est un logiciel libre et gratuit, fait pour entretenir simplement votre ordinateur.">
+        <LigneReglage icone={GithubLogoIcon} titre="Code source sur GitHub" description="Consultez le projet, proposez des idées ou une amélioration." onClick={() => ouvrir('source')} />
+        <LigneReglage icone={WarningIcon} titre="Signaler un problème" description="Dites-nous ce qui ne fonctionne pas, nous le corrigerons." onClick={() => ouvrir('probleme')} />
+        <LigneReglage icone={ScalesIcon} titre="Licence et crédits" description="Les conditions d'utilisation et les projets sur lesquels Kernshine s'appuie." onClick={() => ouvrir('licence')} />
+        {erreurLien && <Bandeau type="corriger">{erreurLien}</Bandeau>}
+      </Section>
     </section>
   );
 }

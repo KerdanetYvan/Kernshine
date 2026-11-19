@@ -13,13 +13,15 @@ interface BilanPilotesProps {
   /** Pilotes qui demandent un redémarrage pour finir leur installation. */
   aRedemarrer: Driver[];
   pointDeRestauration: boolean;
+  /** Le réglage « point de restauration avant les pilotes » est coupé. */
+  restaurationDesactivee: boolean;
   onRedemarrer: () => void;
   onVerifier: () => void;
   onAccueil: () => void;
 }
 
 /** Bilan de l'installation des pilotes (Figma : « Pilotes – Terminé »). */
-export default function BilanPilotes({ pilotes, etats, aRedemarrer, pointDeRestauration, onRedemarrer, onVerifier, onAccueil }: BilanPilotesProps) {
+export default function BilanPilotes({ pilotes, etats, aRedemarrer, pointDeRestauration, restaurationDesactivee, onRedemarrer, onVerifier, onAccueil }: BilanPilotesProps) {
   const faits = pilotes.filter((p) => etats.get(p.id) === 'ok');
   const rates = pilotes.filter((p) => etats.get(p.id) === 'echec');
   const arretes = pilotes.filter((p) => etats.get(p.id) === 'arrete' || !etats.has(p.id));
@@ -96,7 +98,9 @@ export default function BilanPilotes({ pilotes, etats, aRedemarrer, pointDeResta
       <p className="text-corps-petit text-secondary">
         {pointDeRestauration
           ? "Un point de restauration a été créé avant l'installation : vous pouvez revenir en arrière depuis Windows si besoin."
-          : "Aucun point de restauration n'a été créé, à votre demande."}
+          : restaurationDesactivee
+            ? "Aucun point de restauration n'a été créé : ce réglage est désactivé dans les Paramètres."
+            : "Aucun point de restauration n'a été créé, à votre demande."}
       </p>
 
       <div className="flex flex-wrap justify-end gap-3">

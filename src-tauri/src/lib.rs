@@ -1,6 +1,7 @@
 mod diagnose;
 mod drivers;
 mod hidden;
+mod prefs;
 mod proc;
 mod ps;
 mod repair;
@@ -55,6 +56,9 @@ pub fn run() {
             scan::clean_stop,
             settings::settings_get_info,
             settings::settings_set_login_item,
+            settings::settings_open_link,
+            prefs::settings_get_prefs,
+            prefs::settings_set_prefs,
             settings::shell_open_log,
             selfupdate::selfupdate_check,
             selfupdate::selfupdate_install,
@@ -99,6 +103,7 @@ mod tests {
             ("diagnose.rs", include_str!("diagnose.rs")),
             ("drivers.rs", include_str!("drivers.rs")),
             ("hidden.rs", include_str!("hidden.rs")),
+            ("prefs.rs", include_str!("prefs.rs")),
             ("proc.rs", include_str!("proc.rs")),
             ("ps.rs", include_str!("ps.rs")),
             ("repair.rs", include_str!("repair.rs")),

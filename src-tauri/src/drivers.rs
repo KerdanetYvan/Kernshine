@@ -370,7 +370,15 @@ fn progress_file() -> PathBuf {
     ))
 }
 
-fn install_script(ids: &[String], require_restore: bool, log: &Path, stop: &Path) -> String {
+/// `restore` : créer d'abord un point de restauration (réglage des Paramètres) ;
+/// `require_restore` : ne rien installer s'il échoue.
+fn install_script(
+    ids: &[String],
+    restore: bool,
+    require_restore: bool,
+    log: &Path,
+    stop: &Path,
+) -> String {
     let list = ids
         .iter()
         .map(|i| ps::quote(i))
@@ -379,14 +387,21 @@ fn install_script(ids: &[String], require_restore: bool, log: &Path, stop: &Path
     let log = ps::quote(&log.to_string_lossy());
     let stop = ps::quote(&stop.to_string_lossy());
     let require = if require_restore { "$true" } else { "$false" };
+    let sauvegarde = if restore {
+        format!(
+            r#"Note 'SAUVEGARDE'
+$ok = $false
+try {{ Checkpoint-Computer -Description 'Kernshine : avant les pilotes' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; $ok = $true }} catch {{ }}
+if ($ok) {{ Note 'SAUVEGARDE_OK' }} else {{ Note 'SAUVEGARDE_ECHEC'; if ({require}) {{ exit }} }}"#
+        )
+    } else {
+        String::new()
+    };
     format!(
         r#"$ErrorActionPreference = 'SilentlyContinue'
 $ids = @({list})
 function Note([string]$s) {{ Add-Content -LiteralPath {log} -Value $s -Encoding UTF8 }}
-Note 'SAUVEGARDE'
-$ok = $false
-try {{ Checkpoint-Computer -Description 'Kernshine : avant les pilotes' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; $ok = $true }} catch {{ }}
-if ($ok) {{ Note 'SAUVEGARDE_OK' }} else {{ Note 'SAUVEGARDE_ECHEC'; if ({require}) {{ exit }} }}
+{sauvegarde}
 $session = New-Object -ComObject Microsoft.Update.Session
 $found = $session.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Driver' and IsHidden=0")
 foreach ($id in $ids) {{
@@ -420,6 +435,7 @@ fn read_lines(path: &Path) -> Vec<String> {
 
 fn install(
     ids: Vec<String>,
+    restore: bool,
     require_restore: bool,
     emit: &dyn Fn(DriverProgress),
 ) -> DriverInstallResult {
@@ -434,7 +450,7 @@ fn install(
     let log = progress_file();
     let stop = stop_file();
     let _ = std::fs::remove_file(&stop);
-    let script = install_script(&ids, require_restore, &log, &stop);
+    let script = install_script(&ids, restore, require_restore, &log, &stop);
     let timeout = INSTALL_TIMEOUT_BASE + INSTALL_TIMEOUT_PER_DRIVER * ids.len() as u32;
 
     // Le script tourne dans un autre fil ; celui-ci lit l'avancement au fil de l'eau.
@@ -488,17 +504,18 @@ fn install(
     }
 }
 
-/// Installe ces pilotes (identifiants Windows Update), un à la fois. Sans point de
-/// restauration possible et avec `require_restore`, rien n'est installé : l'interface
-/// demande à l'utilisateur s'il veut continuer quand même.
+/// Installe ces pilotes (identifiants Windows Update), un à la fois. `restore` suit le
+/// réglage des Paramètres. Sans point de restauration possible et avec `require_restore`,
+/// rien n'est installé : l'interface demande à l'utilisateur s'il veut continuer quand même.
 #[tauri::command]
 pub async fn drivers_install(
     ids: Vec<String>,
+    restore: bool,
     require_restore: bool,
     on_progress: Channel<DriverProgress>,
 ) -> Result<DriverInstallResult, String> {
     blocking(move || {
-        install(ids, require_restore, &|p| {
+        install(ids, restore, require_restore, &|p| {
             let _ = on_progress.send(p);
         })
     })
@@ -616,21 +633,20 @@ mod tests {
         assert!(is_update_id("3f1c2a4e-0000-4000-8000-000000000001"));
         assert!(!is_update_id("'; Remove-Item C:\\ -Recurse #"));
         // Rien d'invalide : rien n'est lancé.
-        let res = install(vec!["pas-un-id".into()], true, &|_| {});
+        let res = install(vec!["pas-un-id".into()], true, true, &|_| {});
         assert_eq!(res.status, "error");
     }
 
     #[test]
     fn script_quotes_its_values_and_can_stop_on_restore_failure() {
-        let script = install_script(
-            &["3f1c2a4e-0000-4000-8000-000000000001".into()],
-            true,
-            Path::new("C:\\t\\a.txt"),
-            Path::new("C:\\t\\s.flag"),
-        );
+        let id = ["3f1c2a4e-0000-4000-8000-000000000001".to_string()];
+        let (log, stop) = (Path::new("C:\\t\\a.txt"), Path::new("C:\\t\\s.flag"));
+        let script = install_script(&id, true, true, log, stop);
         assert!(script.contains("@('3f1c2a4e-0000-4000-8000-000000000001')"));
         assert!(script.contains("if ($true) { exit }"));
         assert!(script.contains("Checkpoint-Computer"));
+        // Réglage coupé dans les Paramètres : pas de point de restauration du tout.
+        assert!(!install_script(&id, false, true, log, stop).contains("Checkpoint-Computer"));
     }
 
     #[test]

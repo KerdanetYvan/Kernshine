@@ -302,6 +302,14 @@ export interface SelfUpdateCheck {
   error?: string;
 }
 
+/** Préférences de l'utilisateur (`settings_get_prefs`, `settings_set_prefs`). */
+export interface Prefs {
+  /** Installer les nouvelles versions de Kernshine sans attendre un clic (désactivé par défaut). */
+  autoUpdate: boolean;
+  /** Créer un point de restauration avant d'installer des pilotes (activé par défaut). */
+  restoreBeforeDrivers: boolean;
+}
+
 /** Étapes de `selfupdate_install`, reçues au fil de l'eau. */
 export type SelfUpdateEvent =
   | { step: 'downloading'; downloaded: number; total?: number | null }
