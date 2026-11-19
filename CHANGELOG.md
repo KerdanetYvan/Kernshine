@@ -7,6 +7,14 @@ versionnage selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [0.2.0-alpha.2] — 2026-11-19
+
+Mise à jour de stabilité, et première version installée automatiquement par Kernshine.
+
+### Corrigé
+
+- L'application ne se fige plus pendant une analyse, une réparation ou une mise à jour : vous pouvez continuer à naviguer pendant que Kernshine travaille
+
 ## [0.2.0-alpha.1] — 2026-11-19
 
 Cleaner PC devient Kernshine : nouveau nom, nouvelle allure, et une application qui se met à jour toute seule.
