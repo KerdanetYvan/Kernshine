@@ -44,8 +44,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Sans la clé, l'installeur ne serait pas signé et l'app refuserait la mise à jour :
+      # mieux vaut s'arrêter tout de suite avec un message clair.
+      - name: Check signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY manquant : impossible de signer la mise à jour (voir CLAUDE.md, « Mises à jour de Kernshine »)"
+            exit 1
+          fi
+
+      # tauri.release.conf.json active la signature (createUpdaterArtifacts) : un .sig
+      # est produit à côté de l'installeur. Les builds locaux n'en ont pas besoin.
       - name: Build installer
-        run: npm run build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build --config src-tauri/tauri.release.conf.json
 
       - name: Prepare installer
         id: installer
@@ -56,6 +73,7 @@ jobs:
           SRC="$(ls src-tauri/target/release/bundle/nsis/*-setup.exe | head -n 1)"
           DEST="Kernshine-${VERSION}-setup.exe"
           cp "$SRC" "$DEST"
+          cp "$SRC.sig" "$DEST.sig"
           echo "file=$DEST" >> "$GITHUB_OUTPUT"
 
       - name: Compose release notes
@@ -115,3 +133,26 @@ jobs:
             --notes-file full-release-body.md \
             ${{ steps.prerelease.outputs.flag }} \
             "${{ steps.installer.outputs.file }}"
+
+      # Les apps installées lisent releases/download/canal-alpha/latest.json
+      # (plugins > updater > endpoints dans tauri.conf.json). GitHub ignore les
+      # pré-versions dans « latest » : d'où cette release fixe, mise à jour à chaque version.
+      - name: Publish update manifest
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          INSTALLER="${{ steps.installer.outputs.file }}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${INSTALLER}"
+
+          node scripts/updater-manifest.mjs "$VERSION" "$URL" "$INSTALLER.sig" changelog-section.md latest.json
+
+          if ! gh release view canal-alpha >/dev/null 2>&1; then
+            gh release create canal-alpha --prerelease \
+              --title "Canal de mise à jour (alpha)" \
+              --notes "Fichier lu par Kernshine pour savoir si une nouvelle version existe. Ne pas supprimer : les apps installées ne trouveraient plus leurs mises à jour."
+          fi
+          gh release upload canal-alpha latest.json --clobber

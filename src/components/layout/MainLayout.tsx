@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { ArrowsClockwiseIcon, BroomIcon, GearSixIcon, HouseIcon, MinusIcon, SquareIcon, WrenchIcon, XIcon } from '@phosphor-icons/react';
 // Sous 32 px, la charte demande la version simplifiée du logo.
 import logo from '../../assets/logo/kernshine-mark-simplifie.svg';
+import UpdateBanner from './UpdateBanner';
 
 const appWindow = getCurrentWindow();
 
@@ -98,6 +99,7 @@ export default function MainLayout() {
         {/* Zone de contenu */}
         <main className="flex-1 overflow-auto bg-page">
           <div className="max-w-5xl mx-auto p-6">
+            <UpdateBanner />
             <Outlet />
           </div>
         </main>

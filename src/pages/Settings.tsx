@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SettingsInfo } from '../types/commands';
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, ChartBarIcon, ClockIcon, GlobeIcon, InfoIcon, MoonIcon, RocketIcon, SparkleIcon } from '@phosphor-icons/react';
+import SelfUpdatePanel from '../components/SelfUpdatePanel';
 
 function SectionDivider() {
   return <div className="border-t border-neutral-200" />;
@@ -158,6 +159,7 @@ export default function Settings() {
           <p className="text-sm text-neutral-500">Version</p>
           <span className="text-sm font-medium text-neutral-700">{version}</span>
         </div>
+        <SelfUpdatePanel />
       </div>
 
       <SectionDivider />

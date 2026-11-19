@@ -5,6 +5,7 @@ mod ps;
 mod repair;
 mod report;
 mod scan;
+mod selfupdate;
 mod settings;
 mod system;
 mod updates;
@@ -26,6 +27,8 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        // Mise à jour de Kernshine lui-même (voir selfupdate.rs).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -50,6 +53,8 @@ pub fn run() {
             settings::settings_get_info,
             settings::settings_set_login_item,
             settings::shell_open_log,
+            selfupdate::selfupdate_check,
+            selfupdate::selfupdate_install,
             repair::repair_get_services,
             repair::repair_fix_services,
             repair::repair_run_sfc,

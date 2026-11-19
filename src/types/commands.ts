@@ -235,3 +235,26 @@ export interface CloseAppResult {
   reason?: 'not_found' | 'ambiguous' | 'error';
   candidates?: string[];
 }
+
+/** Mise à jour de Kernshine lui-même (`selfupdate_check`). */
+export interface SelfUpdateCheck {
+  ok: boolean;
+  /** Une version plus récente est disponible. */
+  available: boolean;
+  version?: string;
+  /** Nouveautés de la version (extrait du CHANGELOG). */
+  notes?: string;
+  /** Installé pour tous les utilisateurs : Windows demandera l'autorisation. */
+  needsPermission: boolean;
+  error?: string;
+}
+
+/** Étapes de `selfupdate_install`, reçues au fil de l'eau. */
+export type SelfUpdateEvent =
+  | { step: 'downloading'; downloaded: number; total?: number | null }
+  | { step: 'installing' };
+
+export interface SelfUpdateResult {
+  ok: boolean;
+  error?: string;
+}

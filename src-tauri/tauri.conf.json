@@ -57,5 +57,19 @@
         "installerHooks": "installer/hooks.nsh"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI0MkM4MDhENjIyQzg0NjAKUldSZ2hDeGlqWUFzdERLNDl2aXdZQWp5aVZucG9BNG0rcEptN1ZDWk5vbE93TzZodjZVNGpMY1UK",
+      "endpoints": [
+        "https://github.com/KerdanetYvan/Kernshine/releases/download/canal-alpha/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive",
+        "installerArgs": [
+          "/R"
+        ]
+      }
+    }
   }
 }

@@ -43,6 +43,7 @@ Tu prépares une nouvelle release de Kernshine. Suis ces étapes dans l'ordre, s
    - création du tag annoté `v<version>`
    - `git push` (le commit) puis `git push origin v<version>` (le tag)
    - ce push déclenche `.github/workflows/release.yml` qui va builder l'installeur Windows et publier une release GitHub publique avec les artefacts.
+   - le workflow met aussi à jour `latest.json` dans la release `canal-alpha` : **toutes les apps installées se verront proposer cette version**. Il échoue si les secrets de signature (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) manquent.
    Demande une confirmation explicite avant de continuer. Ne pousse jamais sans cette confirmation, même si l'utilisateur semble pressé.
 
 10. **Sur confirmation** : crée le tag (`git tag -a v<version> -m "Kernshine v<version>"`), pousse le commit puis le tag.
