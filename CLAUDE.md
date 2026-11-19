@@ -1,12 +1,21 @@
-# CoffeeCare — Guide de développement
+# Kernshine — Guide de développement
 
 ## Vue d'ensemble
 
-CoffeeCare (produit : **Cleaner PC**) est une application desktop Windows de maintenance PC (nettoyage, réparation, mises à jour), construite avec Tauri 2 (Rust) + React + TypeScript. L'interface est entièrement en **français**.
+**Kernshine** est une application desktop Windows open source de maintenance PC (nettoyage, réparation, mises à jour), construite avec Tauri 2 (Rust) + React + TypeScript. L'interface est entièrement en **français**. Elle s'est appelée CoffeeCare puis Cleaner PC : ces noms ne doivent plus apparaître (sauf dans l'historique du CHANGELOG).
 
 Tauri a remplacé Electron pour garder la consommation de RAM et de CPU sous contrôle : webview système (WebView2) au lieu d'un Chromium embarqué, backend en Rust.
 
-Un webdesigner travaille sur les maquettes — le style actuel est intentionnellement minimaliste et sera remplacé. Ne pas sur-investir dans le CSS avant réception des maquettes finales.
+## Charte et suivi
+
+- **Maquettes et charte** : fichier Figma [Kernshine](https://www.figma.com/design/fWjHCX33P2YQ8M7Cm9vnaQ/Kernshine). Pages : *Brand board* (logo, couleurs, typographie, icônes, ton), *Fondations*, *Composants*, *Écrans*. Ignorer la page *Archives*.
+- **Board** : projet GitHub [Kernshine](https://github.com/users/KerdanetYvan/projects/2). Une issue parente par chantier, découpée en sous-issues. Chantiers en cours :
+  - #28 Passer à la marque Kernshine (nom, logo, couleurs, typographie, icônes)
+  - #33 Installeur : choisir pour qui et où installer Kernshine
+  - #38 Refonte des pages selon les maquettes (sous-issues créées au démarrage de la refonte)
+- **Ton de la marque** : fiable, clair, calme, transparent, sobre. Kernshine explique avant d'agir et ne fait rien d'irréversible sans l'accord de l'utilisateur.
+
+Le style actuel est provisoire : il sera remplacé par la charte (#31) puis par les écrans (#38). Ne pas investir dans le CSS hors de ces issues.
 
 ## Stack technique
 
@@ -17,7 +26,7 @@ Un webdesigner travaille sur les maquettes — le style actuel est intentionnell
 | Bundler | Vite 7 |
 | Routing | React Router v7 (HashRouter) |
 | Style | Tailwind CSS 3.4 |
-| Icônes | Lucide React |
+| Icônes | Lucide React (remplacé par Phosphor, #32) |
 | Logs | tauri-plugin-log (dev uniquement) |
 
 ## Prérequis
@@ -142,10 +151,11 @@ Les messages d'échec des mises à jour viennent de `diagnose.rs` (un message en
 
 ### Styles Tailwind
 
-- Couleur principale de la marque : `bole` = `rgb(76, 41, 34)` (brun café).
-- Pattern de carte standard : `bg-white dark:bg-neutral-800 p-6 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700`.
+- Charte Kernshine (brand board, intégration dans #31) : lilas `#7461B0` (marque, boutons principaux), lilas doux `#E3DCF5` (fonds de mise en avant), or `#F6C45A` (accent, jamais pour du texte sur fond clair), ardoise `#24304A` (texte), sable clair `#FDFBF7` (fond de page), sable `#F6F0E4` (fonds secondaires). Quatre états : Tout va bien, À surveiller, À corriger, Bon à savoir.
+- Typographie : Sora pour les titres et les grands chiffres, Manrope pour le texte, les boutons et les libellés. Texte courant à 16 px minimum. Polices embarquées, l'application doit marcher sans internet.
+- Thème clair en priorité, le thème sombre viendra plus tard.
+- En attendant #31, le code utilise encore l'ancienne couleur `bole` et le pattern de carte `bg-white dark:bg-neutral-800 p-6 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700`.
 - Ne pas créer de classes CSS custom pour ce que Tailwind gère déjà.
-- Attendre les maquettes avant de figer un design system.
 
 ### Rust
 
@@ -176,8 +186,9 @@ Les messages d'échec des mises à jour viennent de `diagnose.rs` (un message en
 
 ## Points d'attention
 
-- **Icônes** : `src-tauri/icons/` contient les icônes par défaut de Tauri. À remplacer par le logo (`npx tauri icon logo.png`).
+- **Icônes** : `src-tauri/icons/` contient les icônes par défaut de Tauri. À remplacer par le logo Kernshine (#30, `npx tauri icon`), avec la version simplifiée du logo pour les tailles sous 32 px.
+- **Installeur** : NSIS, aujourd'hui `installMode: currentUser`. Choix « pour moi / pour tous », dossier et raccourci sur le bureau suivis dans #33.
 - **Signature** : l'installeur n'est pas signé (avertissement SmartScreen).
-- **Dossier de données** : `%APPDATA%\fr.cleanerpc.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes masqués dans `hidden-updates.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier.
+- **Dossier de données** : `%APPDATA%\fr.kernshine.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes masqués dans `hidden-updates.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier. L'ancien `fr.cleanerpc.desktop` (alphas Cleaner PC) n'est pas repris : seuls des testeurs les ont installées.
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.

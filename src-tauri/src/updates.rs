@@ -1360,7 +1360,7 @@ mod tests {
         let events = Arc::new(Mutex::new(Vec::<String>::new()));
         let sink = Arc::clone(&events);
         let dir =
-            std::env::temp_dir().join(format!("cleaner_pc_report_test_{}", std::process::id()));
+            std::env::temp_dir().join(format!("kernshine_report_test_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
 
         let res = install_software_stream(
@@ -1547,7 +1547,7 @@ mod tests {
     /// par lui attend aussi), `list` répond tout de suite.
     fn fake_winget(name: &str, seconds: u32, marker: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("cleaner_pc_fake_{name}_{}", std::process::id()));
+            std::env::temp_dir().join(format!("kernshine_fake_{name}_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let script = dir.join("winget.cmd");
         let lines = [

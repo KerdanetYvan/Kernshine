@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn delete_contents_removes_files_and_folders() {
-        let root = std::env::temp_dir().join(format!("cleaner_pc_test_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("kernshine_test_{}", std::process::id()));
         fs::create_dir_all(root.join("sub")).unwrap();
         fs::write(root.join("a.txt"), b"12345").unwrap();
         fs::write(root.join("sub").join("b.txt"), b"1").unwrap();

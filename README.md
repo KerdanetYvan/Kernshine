@@ -1,7 +1,7 @@
-# Cleaner PC
+# Kernshine
 
-Application de maintenance PC pour Windows, conçue pour le grand public.  
-Nettoyage, réparation et mises à jour en quelques clics — sans jargon technique.
+Votre PC, en bonne santé. Application open source de maintenance PC pour Windows, conçue pour le grand public.  
+Nettoyage, réparation et mises à jour en quelques clics — sans jargon technique. Kernshine s'appelait auparavant Cleaner PC.
 
 > **Statut : alpha** — en développement actif. Des bugs peuvent survenir.
 
@@ -30,7 +30,7 @@ Nettoyage, réparation et mises à jour en quelques clics — sans jargon techni
 
 1. Télécharger le fichier `.exe` depuis la section [Releases](../../releases)
 2. Lancer l'installeur et suivre les étapes
-3. Une fois l'installation terminée, lancez Cleaner PC depuis le menu Démarrer
+3. Une fois l'installation terminée, lancez Kernshine depuis le menu Démarrer
 
 ---
 

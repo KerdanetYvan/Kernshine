@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Cleaner PC",
+  "productName": "Kernshine",
   "version": "../package.json",
-  "identifier": "fr.cleanerpc.desktop",
+  "identifier": "fr.kernshine.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Cleaner PC",
+        "title": "Kernshine",
         "width": 1100,
         "height": 720,
         "minWidth": 900,
