@@ -2,6 +2,8 @@
 import { CheckCircleIcon, CheckSquareIcon, MagnifyingGlassIcon, ShieldWarningIcon, SquareIcon, TrashIcon, WarningIcon, XCircleIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TempDir, CleanResult, DirCleanResult, ScanResult } from '../types/commands';
+import Bouton from '../components/ui/Bouton';
+import EnTetePage from '../components/ui/EnTetePage';
 
 type Phase = 'idle' | 'scanning' | 'results' | 'cleaning' | 'done';
 
@@ -105,25 +107,18 @@ export default function Cleaning() {
   return (
     <section className="space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Nettoyage</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">
-            Analyse et suppression des fichiers temporaires et caches
-          </p>
-        </div>
-
-        {phase === 'idle' || phase === 'done' ? (
-          <button
-            onClick={scan}
-            className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-          >
-            <MagnifyingGlassIcon className="h-4 w-4" />
-            {phase === 'done' ? 'Rescanner' : 'Scanner'}
-          </button>
-        ) : null}
-      </div>
+      <EnTetePage
+        titre="Nettoyage"
+        sousTitre="Trouvez ce qui encombre votre PC, puis choisissez ce que vous nettoyez."
+        actions={
+          phase === 'idle' || phase === 'done' ? (
+            <Bouton variante="secondaire" taille="compact" onClick={scan}>
+              <MagnifyingGlassIcon className="size-5" />
+              {phase === 'done' ? 'Rescanner' : 'Scanner'}
+            </Bouton>
+          ) : null
+        }
+      />
 
       {/* Scanning */}
       {phase === 'scanning' && (

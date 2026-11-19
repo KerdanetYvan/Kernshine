@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { SettingsInfo } from '../types/commands';
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, ChartBarIcon, ClockIcon, GlobeIcon, InfoIcon, MoonIcon, RocketIcon, SparkleIcon } from '@phosphor-icons/react';
 import SelfUpdatePanel from '../components/SelfUpdatePanel';
+import EnTetePage from '../components/ui/EnTetePage';
 
 function SectionDivider() {
   return <div className="border-t border-neutral-200" />;
@@ -81,10 +82,7 @@ export default function Settings() {
   return (
     <section className="space-y-8">
 
-      <div>
-        <h1 className="text-2xl font-semibold">Paramètres</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">Personnalisez le comportement de Kernshine</p>
-      </div>
+      <EnTetePage titre="Paramètres" sousTitre="Réglez Kernshine à votre façon." />
 
       {/* ══ Apparence ══════════════════════════════════════════════════════════ */}
       <div className="space-y-4">

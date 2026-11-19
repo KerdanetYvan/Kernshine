@@ -28,6 +28,10 @@ module.exports = {
         // bg/neutral : « neutre » pour ne pas écraser la palette neutral de Tailwind.
         neutre: c('bg-neutral'),
         inverse: c('bg-inverse'),
+        // Pistes (barre de progression, pastille « Jamais analysé », interrupteur
+        // désactivé) : le Figma y met les couleurs des bordures.
+        piste: c('border-default'),
+        'piste-forte': c('border-strong'),
       },
       // Textes : text-primary, text-secondary, text-muted, text-inverse, text-accent
       textColor: {
@@ -95,6 +99,11 @@ module.exports = {
         md: '10px',
         lg: '16px',
         xl: '24px',
+      },
+      // Les seules ombres du Figma : la fenêtre de confirmation et le disque de son halo.
+      boxShadow: {
+        fenetre: '0 20px 28px rgb(26 20 51 / 0.2)',
+        disque: '0 4px 12px rgb(26 20 51 / 0.12)',
       },
     },
   },

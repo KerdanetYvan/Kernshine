@@ -98,7 +98,11 @@ src/
   App.tsx              # Router + lazy loading des pages
   types/commands.ts    # Types des réponses des commandes
   components/layout/
-    MainLayout.tsx     # Layout partagé (barre de titre + sidebar + <Outlet>)
+    MainLayout.tsx     # Cadre partagé (barre de titre + menu + <Outlet>)
+    BarreDeTitre.tsx   # Barre de 40 px : logo, glisser, réduire/agrandir/fermer
+    Navigation.tsx     # Menu de gauche (liste des rubriques)
+    UpdateBanner.tsx   # Bandeau « nouvelle version de Kernshine »
+  components/ui/       # Composants communs du Figma (page Composants)
   pages/               # Dashboard, Cleaning, Repair, Updates, Settings, NotFound
 ```
 
@@ -106,18 +110,24 @@ src/
 
 HashRouter est utilisé. Ne pas migrer vers BrowserRouter.
 
+Le menu suit les maquettes : Accueil, Nettoyage, Applications, Pilotes, Santé, plus Réparation (gardée en plus des maquettes, écran validé dans le Figma). Les Paramètres s'ouvrent avec la roue en haut à droite de chaque page.
+
 Routes actuelles :
-- `/` → Dashboard
+
+- `/` → Accueil (`Dashboard`)
 - `/cleaning` → Nettoyage
+- `/applications` → Applications (pour l'instant la page `Updates`, logiciels et pilotes ; découpée en onglets avec #50)
 - `/repair` → Réparation
-- `/updates` → Mises à jour
 - `/settings` → Paramètres
+- `/updates` → redirige vers `/applications`
+
+Pilotes (`/drivers`, #51) et Santé (`/health`, #57) sont déjà dans `Navigation.tsx` avec `bientot: true` : ils restent masqués tant que leur page n'existe pas. Retirer `bientot` en ajoutant la route.
 
 Toutes les pages sont chargées en **lazy** via `React.lazy()` + `<Suspense>`.
 
 ### Layout
 
-`MainLayout` crée la fenêtre sans cadre natif : barre de titre de 40px (glisser avec `data-tauri-drag-region`, boutons réduire/agrandir/fermer via `getCurrentWindow()`), sidebar à gauche, zone de contenu scrollable.
+`MainLayout` crée la fenêtre sans cadre natif : `BarreDeTitre` (40 px, glisser avec `data-tauri-drag-region`, boutons réduire/agrandir/fermer via `getCurrentWindow()`), `Navigation` à gauche (288 px), zone de contenu scrollable (marges de 48 px, 32 px entre les blocs). Chaque page commence par `EnTetePage` (titre, sous-titre, actions, roue des Paramètres).
 
 ## Langage et ton de l'interface
 
@@ -164,7 +174,9 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 - **Typographie** : polices embarquées (`@fontsource-variable`, l'app doit marcher sans internet). Manrope par défaut (`font-sans`), Sora avec `font-titre` (appliqué d'office aux `h1`-`h3`). Tailles = styles Figma, avec interligne, espacement et graisse inclus : `font-titre` + `text-chiffre-grand`, `text-chiffre`, `text-display`, `text-titre-1`, `text-titre-2`, `text-titre-3` ; Manrope + `text-corps-grand`, `text-corps` (défaut du `body`), `text-corps-gras`, `text-corps-petit`, `text-bouton`, `text-libelle`, `text-legende`. Texte courant à 16 px minimum.
 - **Arrondis** : `rounded-sm` 6 px, `rounded-md` 10 px, `rounded-lg` 16 px, `rounded-xl` 24 px, `rounded-full` (valeurs Figma, remplacent celles de Tailwind).
 - **Espacements** : ceux du Figma tombent sur l'échelle de Tailwind : xs = `1` (4 px), sm = `2` (8 px), md = `3` (12 px), lg = `4` (16 px), xl = `6` (24 px), 2xl = `8` (32 px).
-- **Ombres** : les composants du Figma n'en ont pas (cartes : `bg-surface border rounded-xl p-6`).
+- **Ombres** : les composants du Figma n'en ont pas (cartes : `bg-surface border rounded-xl p-6`), sauf la fenêtre de confirmation (`shadow-fenetre`) et le disque de son halo (`shadow-disque`).
+- **Pistes** : `bg-piste` (couleur de `border/default`) pour les barres de progression et la pastille « Jamais analysé », `bg-piste-forte` (`border/strong`) pour l'interrupteur désactivé.
+- **Composants communs** (`src/components/ui/`, un par composant de la page *Composants*) : `Bouton`, `BoutonRond`, `Pastille`, `Bandeau`, `Carte`, `Interrupteur`, `CaseACocher`, `BarreProgression`, `Onglets`, `MessageTemporaire`, `FenetreConfirmation`, `EnTetePage`. Les pages les utilisent au lieu de refaire boutons et pastilles à la main. Toute action irréversible passe par `FenetreConfirmation`.
 - Thème clair uniquement pour l'instant ; le sombre redéfinira les variables `--color-*`.
 - **Icônes** : Phosphor (`@phosphor-icons/react`, licence MIT), importées par leur nom avec le suffixe `Icon` (`import { BroomIcon } from '@phosphor-icons/react'`, les noms sans suffixe sont dépréciés). Deux graisses, d'après le brand board :
   - `weight="duotone"` pour ce qui nomme une zone de l'app : menu, titres de cartes, cartes d'action, grandes illustrations ;
