@@ -96,7 +96,7 @@ export default function MainLayout() {
         </aside>
 
         {/* Zone de contenu */}
-        <main className="flex-1 overflow-auto bg-neutral-50">
+        <main className="flex-1 overflow-auto bg-page">
           <div className="max-w-5xl mx-auto p-6">
             <Outlet />
           </div>

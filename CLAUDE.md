@@ -151,10 +151,20 @@ Les messages d'échec des mises à jour viennent de `diagnose.rs` (un message en
 
 ### Styles Tailwind
 
-- Charte Kernshine (brand board, intégration dans #31) : lilas `#7461B0` (marque, boutons principaux), lilas doux `#E3DCF5` (fonds de mise en avant), or `#F6C45A` (accent, jamais pour du texte sur fond clair), ardoise `#24304A` (texte), sable clair `#FDFBF7` (fond de page), sable `#F6F0E4` (fonds secondaires). Quatre états : Tout va bien, À surveiller, À corriger, Bon à savoir.
-- Typographie : Sora pour les titres et les grands chiffres, Manrope pour le texte, les boutons et les libellés. Texte courant à 16 px minimum. Polices embarquées, l'application doit marcher sans internet.
-- Thème clair en priorité, le thème sombre viendra plus tard.
-- En attendant #31, le code utilise encore l'ancienne couleur `bole` et le pattern de carte `bg-white dark:bg-neutral-800 p-6 rounded-lg shadow-md border border-neutral-200 dark:border-neutral-700`.
+La charte vient de la page *Fondations* du Figma et des variables des composants. Elle est dans `tailwind.config.js` (classes) et `src/index.css` (valeurs des couleurs). **Toujours utiliser ces classes**, jamais une couleur, une taille de texte ou un arrondi en dur. Les pages actuelles utilisent encore la palette `neutral-*` de Tailwind : elles passeront à la charte avec la refonte (#38).
+
+- **Couleurs** : variables CSS `--color-*` (canaux RVB) reprenant les variables Figma ; la classe reprend le chemin Figma.
+  - Fonds : `bg-page` (sable clair), `bg-surface` (blanc), `bg-subtle` (sable), `bg-neutre` (`bg/neutral`, renommé pour ne pas écraser la palette `neutral` de Tailwind), `bg-inverse` (ardoise).
+  - Textes : `text-primary` (ardoise), `text-secondary`, `text-muted`, `text-inverse`, `text-accent`.
+  - Bordures : `border` (= `border/default`), `border-strong`.
+  - Marque et actions : `brand-accent` (or), `brand-on-accent`, `brand-shield-fill` (lilas doux), `brand-shield-stroke` (lilas), `action-primary-bg` (lilas), `action-primary-fg`.
+  - États : `status-{ok,warning,danger,info}-{fg,bg}` (Tout va bien, À surveiller, À corriger, Bon à savoir).
+  - Contraste vérifié (WCAG AA) pour tous les textes sur tous les fonds. L'or (`brand-accent`) ne sert **jamais** pour du texte sur fond clair (1,6:1).
+- **Typographie** : polices embarquées (`@fontsource-variable`, l'app doit marcher sans internet). Manrope par défaut (`font-sans`), Sora avec `font-titre` (appliqué d'office aux `h1`-`h3`). Tailles = styles Figma, avec interligne, espacement et graisse inclus : `font-titre` + `text-chiffre-grand`, `text-chiffre`, `text-display`, `text-titre-1`, `text-titre-2`, `text-titre-3` ; Manrope + `text-corps-grand`, `text-corps` (défaut du `body`), `text-corps-gras`, `text-corps-petit`, `text-bouton`, `text-libelle`, `text-legende`. Texte courant à 16 px minimum.
+- **Arrondis** : `rounded-sm` 6 px, `rounded-md` 10 px, `rounded-lg` 16 px, `rounded-xl` 24 px, `rounded-full` (valeurs Figma, remplacent celles de Tailwind).
+- **Espacements** : ceux du Figma tombent sur l'échelle de Tailwind : xs = `1` (4 px), sm = `2` (8 px), md = `3` (12 px), lg = `4` (16 px), xl = `6` (24 px), 2xl = `8` (32 px).
+- **Ombres** : les composants du Figma n'en ont pas (cartes : `bg-surface border rounded-xl p-6`).
+- Thème clair uniquement pour l'instant ; le sombre redéfinira les variables `--color-*`.
 - Ne pas créer de classes CSS custom pour ce que Tailwind gère déjà.
 
 ### Rust
