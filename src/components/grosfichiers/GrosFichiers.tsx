@@ -183,6 +183,7 @@ export default function GrosFichiers() {
         disquesAvant={disquesAvant}
         disquesApres={disquesApres}
         onRelancer={rechercher}
+        onProgrammes={() => navigate('/applications?onglet=desinstallation')}
         onAccueil={() => navigate('/')}
       />
     );

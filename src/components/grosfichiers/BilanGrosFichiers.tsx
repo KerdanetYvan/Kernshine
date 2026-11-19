@@ -14,6 +14,8 @@ interface BilanGrosFichiersProps {
   disquesAvant: DiskSpace[];
   disquesApres: DiskSpace[];
   onRelancer: () => void;
+  /** Vers l'onglet Désinstallation de la page Applications. */
+  onProgrammes: () => void;
   onAccueil: () => void;
 }
 
@@ -26,7 +28,7 @@ const PROBLEMES: Partial<Record<BigFileDeleteResult['status'], string>> = {
 };
 
 /** Bilan de la suppression (Figma : « Gros fichiers – Terminé »). */
-export default function BilanGrosFichiers({ fichiers, resultats, restants, disquesAvant, disquesApres, onRelancer, onAccueil }: BilanGrosFichiersProps) {
+export default function BilanGrosFichiers({ fichiers, resultats, restants, disquesAvant, disquesApres, onRelancer, onProgrammes, onAccueil }: BilanGrosFichiersProps) {
   const parId = new Map(fichiers.map((f) => [f.id, f]));
   const supprimes = resultats.filter((r) => r.status === 'ok').map((r) => parId.get(r.id)!).filter(Boolean);
   const rates = resultats.filter((r) => r.status !== 'ok');
@@ -94,6 +96,10 @@ export default function BilanGrosFichiers({ fichiers, resultats, restants, disqu
           {formatListe(rates.map((r) => `${parId.get(r.id)?.name ?? r.id} (${PROBLEMES[r.status] ?? 'non supprimé'})`), 10)}.
         </Bandeau>
       )}
+
+      <Bandeau type="info" action={{ libelle: 'Voir les programmes', onClick: onProgrammes }}>
+        Vous pouvez aussi désinstaller les programmes que vous n'utilisez plus.
+      </Bandeau>
 
       <div className="flex justify-end gap-3">
         <Bouton variante="secondaire" onClick={onRelancer}>Relancer la recherche</Bouton>

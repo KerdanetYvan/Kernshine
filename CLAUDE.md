@@ -70,7 +70,7 @@ Pour une progression en continu (installation de logiciels), la commande reçoit
 Règles de sécurité (non négociables) :
 
 - Les commandes sont **async** et exécutent le travail bloquant dans `spawn_blocking` : l'interface ne doit jamais geler. Une commande `pub fn` sans `async` tourne sur le fil de la fenêtre : la déclarer `#[tauri::command(async)]` si elle est rapide et sans `.await`. Le test `commands_never_run_on_the_window_thread` (`lib.rs`) refuse toute commande restée sur ce fil.
-- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial, identifiants Windows Update au format GUID pour les pilotes, gros fichiers désignés par l'identifiant de la dernière recherche et revérifiés avant suppression).
+- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial, identifiants Windows Update au format GUID pour les pilotes, gros fichiers désignés par l'identifiant de la dernière recherche et revérifiés avant suppression, programmes à désinstaller désignés par l'identifiant de la dernière liste, leur outil de désinstallation relu dans le registre au moment de le lancer).
 - Les scripts PowerShell passent par `ps.rs` : transmis en `-EncodedCommand` (jamais de fichier `.ps1` temporaire) et toute valeur insérée est échappée avec `ps::quote`. Les programmes externes (winget…) sont lancés avec une liste d'arguments, sans interpréteur.
 - Pas de commande « shell générique » exposée au front. Les permissions de la fenêtre sont dans `src-tauri/capabilities/default.json`.
 
@@ -85,6 +85,7 @@ src-tauri/
     system.rs          # Infos système + échantillonneur CPU/RAM en arrière-plan
     scan.rs            # Nettoyage : zones connues (dossiers, Corbeille, miniatures, Windows.old), analyse et vidage
     bigfiles.rs        # Gros fichiers : recherche (fichiers personnels seulement), suppression définitive
+    uninstall.rs       # Désinstallation : programmes installés (sans les composants), tailles mesurées, outil de chaque programme
     repair.rs          # Services, fichiers système, périphériques, registre, démarrage, disques
     updates.rs         # Logiciels (winget), applications ouvertes, rapports d'échec
     drivers.rs         # Pilotes (Windows Update) : noms simples, point de restauration, installation un par un
@@ -107,7 +108,8 @@ src/
     UpdateBanner.tsx   # Bandeau « nouvelle version de Kernshine »
   components/ui/       # Composants communs du Figma (page Composants)
   components/nettoyage/ # Morceaux de la page Nettoyage (groupes, bilan)
-  components/applications/ # Onglets Mises à jour et Démarrage de la page Applications
+  components/applications/ # Onglets Mises à jour, Désinstallation et Démarrage de la page Applications
+  components/grosfichiers/ # Onglet Gros fichiers de la page Nettoyage
   lib/format.ts        # Tailles (« 6,1 Go »), listes (« a, b et c »), état d'un disque
   pages/               # Dashboard, Cleaning, Applications, Drivers, Repair, Settings, NotFound
 ```
@@ -122,7 +124,7 @@ Routes actuelles :
 
 - `/` → Accueil (`Dashboard`)
 - `/cleaning` → Nettoyage
-- `/applications` → Applications, onglet Mises à jour ; `/applications?onglet=demarrage` → onglet Démarrage (Désinstallation arrive avec #56)
+- `/applications` → Applications, onglet Mises à jour ; `?onglet=desinstallation` → onglet Désinstallation ; `?onglet=demarrage` → onglet Démarrage
 - `/drivers` → Pilotes
 - `/repair` → Réparation
 - `/settings` → Paramètres
@@ -214,7 +216,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 |------|------|-------|
 | Dashboard | Fonctionnel | Infos système, CPU et RAM en temps réel (échantillon toutes les 3 s) |
 | Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. Onglet Gros fichiers (#55, `?onglet=gros-fichiers`) : voir ci-dessous |
-| Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`) |
+| Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`). Désinstallation (#56) : voir ci-dessous |
 | Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
 | Repair | Refaite (#52) | Une analyse au clic (programmes essentiels, périphériques, programmes fantômes, disques), résultats gardés en mémoire et triés en À corriger / Tout va bien ; chaque réparation relance l'analyse de sa zone. Fichiers système en « vérification approfondie », à la demande. Écrans validés dans le Figma (pas de maquette d'origine) |
 | Settings | Refaite (#53) | Démarrage (lancer avec Windows), Sécurité (point de restauration avant les pilotes), Mises à jour (automatiques, désactivées par défaut ; version et « Installer »), À propos. Thème sombre grisé jusqu'à l'Accueil refait (#54) ; Entretien et Gros fichiers arriveront avec #58 et #55 ; Langue masquée (français seulement) |
@@ -237,5 +239,10 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
   - Jamais parcourus : dossiers de Windows et des programmes, AppData, dossiers cachés ou commençant par un point (.git…), `node_modules`, bibliothèques de jeux (Steam, Epic, Ubisoft…), dossiers des programmes installés (« InstallLocation »), fichiers système et fichiers OneDrive absents du PC.
   - Les dossiers du premier niveau sont parcourus en parallèle. Test sur la vraie machine : `cargo test --release real_scan -- --ignored --nocapture`.
   - La date affichée est celle de modification : la date d'ouverture n'est pas fiable sous Windows.
+- **Désinstallation** (`uninstall.rs`) : la liste vient des trois listes « Uninstall » du registre et se lit en un instant (pas d'analyse à lancer).
+  - Pas de « dernière utilisation » ni de « rarement utilisé » : Windows ne les donne pas de façon fiable. Les maquettes ont été adaptées (éditeur, mois d'installation, taille si connue).
+  - Jamais proposés : composants dont dépendent Windows et les programmes (`COMPONENT_WORDS` : bibliothèques Visual C++, runtimes, pilotes, Edge…, comptés dans une note), mises à jour, entrées cachées, Kernshine, et les outils qui ne sont ni `MsiExec /X{GUID}` ni un `.exe` désigné par son chemin complet (winget, scripts, adresses).
+  - Taille : celle annoncée par le programme ; sinon `uninstall_sizes` mesure son dossier en arrière-plan, sans compter les dossiers d'autres programmes rangés dedans (jeux d'une bibliothèque Steam). La mesure peut prendre plus d'une minute avec de gros jeux : l'ordre de la liste ne change qu'à la fin.
+  - Chaque programme est retiré avec son propre outil, lancé normalement (sa fenêtre s'ouvre, Windows demande l'autorisation si besoin). Kernshine attend la fin de tous les processus qu'il a lancés (beaucoup se recopient puis se relancent), puis regarde si l'entrée a disparu : sinon « pas désinstallé ». Tests sur la vraie machine avec une fausse entrée de l'utilisateur (`whoami.exe`, `reg.exe`), jamais avec un vrai programme. Liste et tailles réelles : `cargo test --release real_sizes -- --ignored --nocapture`.
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.
