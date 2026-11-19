@@ -10,7 +10,8 @@
     "build:web": "vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

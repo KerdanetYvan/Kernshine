@@ -1,7 +1,9 @@
 ﻿import { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Cpu, Wrench, Brush, RefreshCw, Settings, Minus, Square, X, Coffee } from 'lucide-react';
+import { Cpu, Wrench, Brush, RefreshCw, Settings, Minus, Square, X } from 'lucide-react';
+// Sous 32 px, la charte demande la version simplifiée du logo.
+import logo from '../../assets/logo/kernshine-mark-simplifie.svg';
 
 const appWindow = getCurrentWindow();
 
@@ -30,7 +32,7 @@ export default function MainLayout() {
       <header data-tauri-drag-region className="drag-region flex items-center h-10 bg-neutral-900 text-white flex-shrink-0">
         {/* Logo + nom */}
         <div className="flex items-center gap-2 px-4 pointer-events-none">
-          <Coffee className="h-4 w-4 text-neutral-400" />
+          <img src={logo} alt="" className="h-4 w-4" />
           <span className="text-sm font-semibold tracking-wide">Kernshine</span>
         </div>
 
