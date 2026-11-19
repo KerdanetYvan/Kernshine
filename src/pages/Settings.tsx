@@ -82,7 +82,7 @@ export default function Settings() {
 
       <div>
         <h1 className="text-2xl font-semibold">Paramètres</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">Personnalisez le comportement de Cleaner PC</p>
+        <p className="text-sm text-neutral-500 mt-0.5">Personnalisez le comportement de Kernshine</p>
       </div>
 
       {/* ══ Apparence ══════════════════════════════════════════════════════════ */}
@@ -108,7 +108,7 @@ export default function Settings() {
           <h2 className="text-lg font-semibold">Démarrage</h2>
         </div>
         <ToggleRow
-          label="Lancer Cleaner PC au démarrage de Windows"
+          label="Lancer Kernshine au démarrage de Windows"
           description="L'application démarre automatiquement quand vous allumez votre PC"
           checked={openAtLogin}
           onChange={handleLoginItem}
@@ -176,8 +176,8 @@ export default function Settings() {
             { icon: Moon,         label: 'Thème sombre',             detail: 'Interface adaptée aux environnements sombres' },
             { icon: Globe,        label: 'Langues supplémentaires',   detail: 'Anglais, espagnol et plus encore' },
             { icon: Clock,        label: 'Nettoyage automatique',     detail: 'Planifiez un nettoyage régulier sans y penser' },
-            { icon: BarChart2,    label: 'Rapports d\'utilisation',   detail: 'Statistiques anonymes pour améliorer Cleaner PC (opt-in)' },
-            { icon: ExternalLink, label: 'Espace en ligne',           detail: 'Compte Cleaner PC, synchronisation et fonctionnalités premium' },
+            { icon: BarChart2,    label: 'Rapports d\'utilisation',   detail: 'Statistiques anonymes pour améliorer Kernshine (opt-in)' },
+            { icon: ExternalLink, label: 'Espace en ligne',           detail: 'Compte Kernshine, synchronisation et fonctionnalités premium' },
           ].map(({ icon: Icon, label, detail }) => (
             <div key={label} className="flex items-center gap-4 px-4 py-3">
               <Icon className="h-4 w-4 text-neutral-400 flex-shrink-0" />

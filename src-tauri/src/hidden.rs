@@ -105,7 +105,7 @@ mod tests {
     /// Dossier de test propre à chaque appel.
     fn temp_dir(name: &str) -> std::path::PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("cleaner_pc_hidden_{name}_{}", std::process::id()));
+            std::env::temp_dir().join(format!("kernshine_hidden_{name}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

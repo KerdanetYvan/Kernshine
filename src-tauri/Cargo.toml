@@ -1,5 +1,5 @@
 [package]
-name = "cleaner-pc"
+name = "kernshine"
 version = "0.1.0"
 description = "Application de maintenance PC pour Windows"
 authors = ["Kerdanet Yvan"]

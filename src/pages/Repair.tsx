@@ -524,7 +524,7 @@ export default function Repair() {
             {drvFixPhase === 'idle' && drivers.length > 0 && (
               <div className="flex items-center justify-between pt-1">
                 <p className="text-sm text-neutral-500">
-                  Cleaner PC va tenter de relancer ces composants. Windows vous demandera l'autorisation.
+                  Kernshine va tenter de relancer ces composants. Windows vous demandera l'autorisation.
                 </p>
                 <button
                   onClick={fixDrivers}
@@ -592,7 +592,7 @@ export default function Repair() {
         <p className="text-sm text-neutral-500">
           Quand un programme est mal désinstallé, il peut laisser une trace dans Windows
           et continuer à apparaître dans la liste des programmes installés alors qu'il n'existe
-          plus sur votre PC. Cleaner PC peut détecter et supprimer ces entrées obsolètes.
+          plus sur votre PC. Kernshine peut détecter et supprimer ces entrées obsolètes.
         </p>
 
         {regPhase === 'scanning' && (
@@ -828,7 +828,7 @@ export default function Repair() {
 
         <p className="text-sm text-neutral-500">
           Vérifiez l'état de santé de votre disque dur. Si des anomalies sont détectées,
-          Cleaner PC peut programmer une vérification approfondie au prochain démarrage.
+          Kernshine peut programmer une vérification approfondie au prochain démarrage.
         </p>
 
         {diskPhase === 'scanning' && (

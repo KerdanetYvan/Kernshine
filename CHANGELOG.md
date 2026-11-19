@@ -1,6 +1,6 @@
 # Changelog
 
-Toutes les modifications notables de Cleaner PC sont documentées ici.
+Toutes les modifications notables de Kernshine sont documentées ici.
 
 Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 versionnage selon [Semantic Versioning](https://semver.org/lang/fr/).

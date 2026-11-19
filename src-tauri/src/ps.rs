@@ -78,7 +78,7 @@ fn result_file() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    std::env::temp_dir().join(format!("cleaner_pc_{}_{nanos}.txt", std::process::id()))
+    std::env::temp_dir().join(format!("kernshine_{}_{nanos}.txt", std::process::id()))
 }
 
 /// Comme [`run_elevated`], pour un script qui doit renvoyer un texte : `build`

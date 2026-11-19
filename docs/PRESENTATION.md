@@ -1,6 +1,6 @@
-**Cleaner PC** — l'entretien de votre ordinateur, sans jargon technique.
+**Kernshine** — votre PC, en bonne santé.
 
-Nettoyage, réparation et mises à jour en quelques clics : Cleaner PC s'occupe des tâches de maintenance que la plupart des gens n'osent pas faire eux-mêmes, avec des explications claires à chaque étape.
+Kernshine est l'outil open source qui diagnostique et entretient votre ordinateur en langage clair, pour prévenir la panne plutôt que la subir. Nettoyage, réparation et mises à jour en quelques clics, avec des explications claires à chaque étape, et rien d'irréversible sans votre accord.
 
 - 🧹 **Nettoyage** — libère de l'espace en supprimant fichiers temporaires et caches inutiles
 - 🔧 **Réparation** — vérifie les programmes essentiels de Windows, les fichiers système et le disque
