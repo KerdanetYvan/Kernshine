@@ -521,6 +521,36 @@ pub async fn bigfiles_delete(ids: Vec<String>) -> Result<Vec<DeleteResult>, Stri
     blocking(move || delete(ids)).await
 }
 
+/// Argument de l'Explorateur pour ouvrir le dossier avec le fichier sélectionné.
+/// Il attend `/select,"chemin"` tel quel : un nom de fichier Windows ne contient jamais de guillemet.
+fn select_arg(path: &Path) -> String {
+    format!("/select,\"{}\"", path.display())
+}
+
+/// Ouvre l'Explorateur sur le dossier du fichier, avec le fichier sélectionné
+/// (identifiant de la dernière recherche : le front n'envoie jamais de chemin).
+#[tauri::command(async)]
+pub fn bigfiles_reveal(id: String) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let path = TROUVES
+        .lock()
+        .ok()
+        .and_then(|t| t.as_ref().and_then(|t| t.get(&id)).map(|f| f.path.clone()))
+        .ok_or("Ce fichier n'est plus dans la liste. Relancez la recherche.")?;
+    if !path.exists() {
+        return Err("Ce fichier n'est plus à cet endroit. Relancez la recherche.".into());
+    }
+    // L'Explorateur rend un code d'erreur même quand il s'ouvre : seul le lancement compte.
+    std::process::Command::new("explorer.exe")
+        .raw_arg(select_arg(&path))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| {
+            log::warn!("[gros fichiers] Explorateur non ouvert : {e}");
+            "L'Explorateur n'a pas pu s'ouvrir. Réessayez.".to_string()
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -588,6 +618,16 @@ mod tests {
         ));
         assert!(is_skipped_file("x.bin", FILE_ATTRIBUTE_SYSTEM));
         assert!(!is_skipped_file("film.mp4", 0x20));
+    }
+
+    #[test]
+    fn explorer_selects_the_file() {
+        assert_eq!(
+            select_arg(Path::new("D:\\Gala 2019\\Les Indiens.mp4")),
+            "/select,\"D:\\Gala 2019\\Les Indiens.mp4\""
+        );
+        // Identifiant inconnu : rien ne s'ouvre.
+        assert!(bigfiles_reveal("inconnu".into()).is_err());
     }
 
     #[test]

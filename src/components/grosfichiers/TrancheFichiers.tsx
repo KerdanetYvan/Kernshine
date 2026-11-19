@@ -2,7 +2,8 @@ import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
 import type { BigFile } from '../../types/commands';
 import { formatOctets, pluriel } from '../../lib/format';
 import CaseACocher from '../ui/CaseACocher';
-import { detailFichier } from './fichiers';
+import { ancienneteFichier } from './fichiers';
+import LienEmplacement from './LienEmplacement';
 
 interface TrancheFichiersProps {
   nom: string;
@@ -11,10 +12,12 @@ interface TrancheFichiersProps {
   onBasculer: (ids: string[], coche: boolean) => void;
   deplie: boolean;
   onDeplier: () => void;
+  /** L'Explorateur n'a pas pu s'ouvrir sur un emplacement. */
+  onErreur: (message: string) => void;
 }
 
 /** Une tranche de taille (« Plus de 5 Go ») et ses fichiers (Figma : « Gros fichiers – Résultats »). */
-export default function TrancheFichiers({ nom, fichiers, selection, onBasculer, deplie, onDeplier }: TrancheFichiersProps) {
+export default function TrancheFichiers({ nom, fichiers, selection, onBasculer, deplie, onDeplier, onErreur }: TrancheFichiersProps) {
   const ids = fichiers.map((f) => f.id);
   const cochees = ids.filter((id) => selection.has(id)).length;
   const etat = cochees === 0 ? false : cochees === ids.length ? true : 'partiel';
@@ -45,7 +48,10 @@ export default function TrancheFichiers({ nom, fichiers, selection, onBasculer, 
             <CaseACocher etat={selection.has(f.id)} onChange={(c) => onBasculer([f.id], c)} libelle={f.name} />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <p className="truncate text-corps text-primary">{f.name}</p>
-              <p className="truncate text-corps-petit text-secondary">{detailFichier(f)}</p>
+              <p className="flex min-w-0 items-baseline gap-1 text-corps-petit text-secondary">
+                <LienEmplacement fichier={f} onErreur={onErreur} />
+                {ancienneteFichier(f) && <span className="shrink-0">· {ancienneteFichier(f)}</span>}
+              </p>
             </div>
             <span className="whitespace-nowrap text-corps-gras text-primary">{formatOctets(f.sizeBytes)}</span>
           </div>

@@ -23,15 +23,17 @@ export const ICONES: Record<GenreFichier, Icon> = {
   autre: FileIcon,
 };
 
-/** « Vidéos › Vacances · Pas modifié depuis 14 mois » */
-export function detailFichier(f: BigFile): string {
-  const lieu = f.location.join(' › ');
+/** « Vidéos › Vacances » */
+export const emplacement = (f: BigFile) => f.location.join(' › ');
+
+/** « Pas modifié depuis 14 mois » (la date d'ouverture n'est pas fiable sous Windows). */
+export function ancienneteFichier(f: BigFile): string | null {
   const j = f.daysSinceModified;
-  if (j === null) return lieu;
-  if (j < 31) return `${lieu} · Modifié ce mois-ci`;
-  if (j < 365) return `${lieu} · Pas modifié depuis ${Math.round(j / 30.4)} mois`;
+  if (j === null) return null;
+  if (j < 31) return 'Modifié ce mois-ci';
+  if (j < 365) return `Pas modifié depuis ${Math.round(j / 30.4)} mois`;
   const ans = Math.floor(j / 365);
-  return `${lieu} · Pas modifié depuis ${ans} an${ans > 1 ? 's' : ''}`;
+  return `Pas modifié depuis ${ans} an${ans > 1 ? 's' : ''}`;
 }
 
 /** Dernière recherche, gardée tant que Kernshine est ouvert (aussi lue par le bilan du Nettoyage). */

@@ -43,6 +43,7 @@ export default function GrosFichiers() {
   const [disquesAvant, setDisquesAvant] = useState<DiskSpace[]>([]);
   const [disquesApres, setDisquesApres] = useState<DiskSpace[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [erreurLien, setErreurLien] = useState<string | null>(null);
   const recherche = useRef(0);
 
   const rechercher = async () => {
@@ -240,6 +241,8 @@ export default function GrosFichiers() {
         <p className="text-corps-petit text-secondary">Du plus gros au plus petit</p>
       </div>
 
+      {erreurLien && <Bandeau type="surveiller" onFermer={() => setErreurLien(null)}>{erreurLien}</Bandeau>}
+
       <div className="divide-y overflow-hidden rounded-xl border bg-surface">
         {TRANCHES.map((t) => {
           const dans = visibles.filter((f) => f.sizeBytes >= t.min && f.sizeBytes < t.max);
@@ -253,6 +256,7 @@ export default function GrosFichiers() {
               onBasculer={basculer}
               deplie={deplies.has(t.id)}
               onDeplier={() => deplier(t.id)}
+              onErreur={setErreurLien}
             />
           );
         })}

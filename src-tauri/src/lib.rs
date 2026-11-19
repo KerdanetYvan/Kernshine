@@ -58,6 +58,7 @@ pub fn run() {
             bigfiles::bigfiles_scan,
             bigfiles::bigfiles_stop,
             bigfiles::bigfiles_delete,
+            bigfiles::bigfiles_reveal,
             settings::settings_get_info,
             settings::settings_set_login_item,
             settings::settings_open_link,
