@@ -100,10 +100,17 @@ module.exports = {
         lg: '16px',
         xl: '24px',
       },
-      // Les seules ombres du Figma : la fenêtre de confirmation et le disque de son halo.
+      // Les seules ombres du Figma : la fenêtre de confirmation et son halo, et le
+      // disque central des grands cadrans (lilas pour le bouton, blanc pour la progression).
       boxShadow: {
         fenetre: '0 20px 28px rgb(26 20 51 / 0.2)',
         disque: '0 4px 12px rgb(26 20 51 / 0.12)',
+        'cadran-plein': '0 14px 32px -4px rgb(117 97 176 / 0.4)',
+        cadran: '0 14px 32px -4px rgb(117 97 176 / 0.3)',
+      },
+      // Piste des anneaux de progression (comme bg-piste).
+      stroke: {
+        piste: c('border-default'),
       },
     },
   },

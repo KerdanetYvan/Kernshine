@@ -70,7 +70,7 @@ Pour une progression en continu (installation de logiciels), la commande reçoit
 Règles de sécurité (non négociables) :
 
 - Les commandes sont **async** et exécutent le travail bloquant dans `spawn_blocking` : l'interface ne doit jamais geler. Une commande `pub fn` sans `async` tourne sur le fil de la fenêtre : la déclarer `#[tauri::command(async)]` si elle est rapide et sans `.await`. Le test `commands_never_run_on_the_window_thread` (`lib.rs`) refuse toute commande restée sur ce fil.
-- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, dossiers connus pour le nettoyage, lettres de disque A-Z, identifiants de paquets sans tiret initial).
+- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial).
 - Les scripts PowerShell passent par `ps.rs` : transmis en `-EncodedCommand` (jamais de fichier `.ps1` temporaire) et toute valeur insérée est échappée avec `ps::quote`. Les programmes externes (winget…) sont lancés avec une liste d'arguments, sans interpréteur.
 - Pas de commande « shell générique » exposée au front. Les permissions de la fenêtre sont dans `src-tauri/capabilities/default.json`.
 
@@ -83,7 +83,7 @@ src-tauri/
   src/
     lib.rs             # Builder, plugins (instance unique, opener, autostart), commandes
     system.rs          # Infos système + échantillonneur CPU/RAM en arrière-plan
-    scan.rs            # Analyse et nettoyage des dossiers temporaires
+    scan.rs            # Nettoyage : zones connues (dossiers, Corbeille, miniatures, Windows.old), analyse et vidage
     repair.rs          # Services, fichiers système, périphériques, registre, démarrage, disques
     updates.rs         # Logiciels (winget), pilotes (Windows Update), rapports d'échec
     diagnose.rs        # Échecs d'installation : message simple + type (bouton à proposer)
@@ -103,6 +103,8 @@ src/
     Navigation.tsx     # Menu de gauche (liste des rubriques)
     UpdateBanner.tsx   # Bandeau « nouvelle version de Kernshine »
   components/ui/       # Composants communs du Figma (page Composants)
+  components/nettoyage/ # Morceaux de la page Nettoyage (groupes, bilan)
+  lib/format.ts        # Tailles (« 6,1 Go »), listes (« a, b et c »), état d'un disque
   pages/               # Dashboard, Cleaning, Repair, Updates, Settings, NotFound
 ```
 
@@ -206,7 +208,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Page | État | Notes |
 |------|------|-------|
 | Dashboard | Fonctionnel | Infos système, CPU et RAM en temps réel (échantillon toutes les 3 s) |
-| Cleaning | Fonctionnel | 15 dossiers connus, détection des applications ouvertes, passage administrateur si besoin |
+| Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. L'onglet Gros fichiers viendra avec #55 |
 | Repair | Fonctionnel | Services, fichiers système, périphériques, registre, démarrage, disques |
 | Updates | Fonctionnel | Logiciels via winget (progression en continu), pilotes via Windows Update |
 | Settings | Partiel | Version, mise à jour de Kernshine, lancement avec Windows ; thème, langue, télémétrie à venir |

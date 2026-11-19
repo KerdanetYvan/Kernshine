@@ -48,8 +48,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             system::system_get_info,
-            scan::scan_get_temp_dirs,
-            scan::clean_delete_dirs,
+            system::system_get_disks,
+            scan::scan_get_zones,
+            scan::clean_zones,
+            scan::clean_stop,
             settings::settings_get_info,
             settings::settings_set_login_item,
             settings::shell_open_log,

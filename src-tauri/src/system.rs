@@ -3,7 +3,7 @@
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
 const HISTORY_LEN: usize = 20;
@@ -149,9 +149,58 @@ pub fn system_get_info(state: tauri::State<'_, Arc<StatsState>>) -> SystemInfo {
     build_info(history)
 }
 
+/// Un disque du PC et sa place libre (pour « Disque C: de 28 Go à 58 Go libres »).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskSpace {
+    /// Lettre suivie de deux-points : « C: ».
+    letter: String,
+    total_bytes: u64,
+    free_bytes: u64,
+}
+
+/// Disques internes avec une lettre, dans l'ordre alphabétique (clés USB exclues).
+fn disks() -> Vec<DiskSpace> {
+    let mut out: Vec<DiskSpace> = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .filter(|d| !d.is_removable() && d.total_space() > 0)
+        .filter_map(|d| {
+            let mount = d.mount_point().to_string_lossy().into_owned();
+            let letter = mount.trim_end_matches(['\\', '/']).to_uppercase();
+            (letter.len() == 2 && letter.ends_with(':')).then(|| DiskSpace {
+                letter,
+                total_bytes: d.total_space(),
+                free_bytes: d.available_space(),
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a.letter.cmp(&b.letter));
+    out.dedup_by(|a, b| a.letter == b.letter);
+    out
+}
+
+#[tauri::command(async)]
+pub fn system_get_disks() -> Vec<DiskSpace> {
+    disks()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_disk_is_listed() {
+        let list = disks();
+        let system = std::env::var("SystemDrive")
+            .unwrap_or_else(|_| "C:".into())
+            .to_uppercase();
+        let disk = list
+            .iter()
+            .find(|d| d.letter == system)
+            .expect("disque système");
+        assert!(disk.free_bytes <= disk.total_bytes);
+    }
 
     #[test]
     fn info_is_filled_in() {
