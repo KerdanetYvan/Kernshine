@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Prefs } from '../types/commands';
 
 /** Réglages par défaut, le temps de lire le fichier (les mêmes que côté Rust). */
-export const PREFS_PAR_DEFAUT: Prefs = { autoUpdate: false, restoreBeforeDrivers: true };
+export const PREFS_PAR_DEFAUT: Prefs = { autoUpdate: false, restoreBeforeDrivers: true, largeFileMinMb: 500 };
 
 /**
  * Préférences de l'utilisateur, lues au chargement. `changer` enregistre tout de suite ;

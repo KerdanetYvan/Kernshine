@@ -1,3 +1,4 @@
+mod bigfiles;
 mod diagnose;
 mod drivers;
 mod hidden;
@@ -54,6 +55,9 @@ pub fn run() {
             scan::scan_get_zones,
             scan::clean_zones,
             scan::clean_stop,
+            bigfiles::bigfiles_scan,
+            bigfiles::bigfiles_stop,
+            bigfiles::bigfiles_delete,
             settings::settings_get_info,
             settings::settings_set_login_item,
             settings::settings_open_link,
@@ -100,6 +104,7 @@ mod tests {
     #[test]
     fn commands_never_run_on_the_window_thread() {
         let sources = [
+            ("bigfiles.rs", include_str!("bigfiles.rs")),
             ("diagnose.rs", include_str!("diagnose.rs")),
             ("drivers.rs", include_str!("drivers.rs")),
             ("hidden.rs", include_str!("hidden.rs")),

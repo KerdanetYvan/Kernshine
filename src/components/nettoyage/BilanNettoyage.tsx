@@ -6,6 +6,7 @@ import Bouton from '../ui/Bouton';
 import Carte from '../ui/Carte';
 import Pastille from '../ui/Pastille';
 import { GROUPES, resumeGroupe } from './groupes';
+import { memoireGrosFichiers } from '../grosfichiers/fichiers';
 
 interface BilanNettoyageProps {
   zones: ZoneInfo[];
@@ -17,6 +18,8 @@ interface BilanNettoyageProps {
   disquesApres: DiskSpace[];
   onRelancer: () => void;
   onAccueil: () => void;
+  /** Ouvre l'onglet Gros fichiers. */
+  onGrosFichiers: () => void;
 }
 
 // En dessous, la différence vient du reste de la machine, pas du nettoyage.
@@ -24,9 +27,11 @@ const VARIATION_NOTABLE = 50 * 1024 * 1024;
 
 /** Écran « Terminé » du nettoyage (Figma : « Nettoyage – Terminé »). */
 export default function BilanNettoyage({
-  zones, selection, resultat, erreur, disquesAvant, disquesApres, onRelancer, onAccueil,
+  zones, selection, resultat, erreur, disquesAvant, disquesApres, onRelancer, onAccueil, onGrosFichiers,
 }: BilanNettoyageProps) {
   const libere = resultat?.freedBytes ?? 0;
+  // Gros fichiers trouvés par une recherche précédente, s'il y en a eu une.
+  const grosFichiers = (memoireGrosFichiers.resultat?.files ?? []).reduce((s, f) => s + f.sizeBytes, 0);
   const parId = new Map(zones.map((z) => [z.id, z]));
   const statuts = new Map((resultat?.zones ?? []).map((r) => [r.id, r]));
 
@@ -109,6 +114,12 @@ export default function BilanNettoyage({
         </Bandeau>
       )}
       {sautees.length > 0 && <Bandeau type="info">Arrêté avant : {noms(sautees)}. Rien n'y a été supprimé.</Bandeau>}
+
+      <Bandeau type="info" action={{ libelle: 'Voir les gros fichiers', onClick: onGrosFichiers }}>
+        {grosFichiers > 0
+          ? `Il reste environ ${formatOctets(grosFichiers)} à récupérer dans vos gros fichiers.`
+          : 'Des fichiers volumineux prennent peut-être aussi de la place : vidéos, archives, anciens installateurs.'}
+      </Bandeau>
 
       <div className="flex justify-end gap-3">
         <Bouton variante="secondaire" onClick={onRelancer}>Relancer une analyse</Bouton>

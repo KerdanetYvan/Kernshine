@@ -16,6 +16,8 @@ pub struct Prefs {
     pub auto_update: bool,
     /// Créer un point de restauration avant d'installer des pilotes.
     pub restore_before_drivers: bool,
+    /// Taille à partir de laquelle un fichier est « gros », en Mo (100, 500, 1024 ou 5120).
+    pub large_file_min_mb: u32,
 }
 
 impl Default for Prefs {
@@ -23,15 +25,27 @@ impl Default for Prefs {
         Prefs {
             auto_update: false,
             restore_before_drivers: true,
+            large_file_min_mb: 500,
         }
+    }
+}
+
+impl Prefs {
+    /// Remet les valeurs hors de la liste proposée à leur valeur par défaut.
+    fn normalized(mut self) -> Self {
+        if !crate::bigfiles::MIN_SIZES_MB.contains(&self.large_file_min_mb) {
+            self.large_file_min_mb = Prefs::default().large_file_min_mb;
+        }
+        self
     }
 }
 
 fn read(dir: &Path) -> Prefs {
     std::fs::read_to_string(dir.join(FILE_NAME))
         .ok()
-        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
+        .and_then(|t| serde_json::from_str::<Prefs>(t.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
+        .normalized()
 }
 
 /// Écrit dans un fichier temporaire puis le renomme : jamais de fichier à moitié écrit.
@@ -54,6 +68,7 @@ pub fn settings_get_prefs(app: AppHandle) -> Prefs {
 
 #[tauri::command(async)]
 pub fn settings_set_prefs(app: AppHandle, prefs: Prefs) -> Result<Prefs, String> {
+    let prefs = prefs.normalized();
     let dir = data_dir(&app).ok_or("Dossier de données introuvable")?;
     write(&dir, &prefs).map_err(|e| {
         log::warn!("préférences non enregistrées : {e}");
@@ -86,6 +101,7 @@ mod tests {
         let p = Prefs {
             auto_update: true,
             restore_before_drivers: false,
+            large_file_min_mb: 1024,
         };
         write(&dir, &p).unwrap();
         assert_eq!(read(&dir), p);
@@ -94,6 +110,9 @@ mod tests {
         // Un réglage manquant prend sa valeur par défaut.
         std::fs::write(dir.join(FILE_NAME), r#"{"autoUpdate":true}"#).unwrap();
         assert!(read(&dir).auto_update && read(&dir).restore_before_drivers);
+        // Une taille hors de la liste proposée revient à 500 Mo.
+        std::fs::write(dir.join(FILE_NAME), r#"{"largeFileMinMb":3}"#).unwrap();
+        assert_eq!(read(&dir).large_file_min_mb, 500);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

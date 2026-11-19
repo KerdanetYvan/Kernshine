@@ -70,7 +70,7 @@ Pour une progression en continu (installation de logiciels), la commande reçoit
 Règles de sécurité (non négociables) :
 
 - Les commandes sont **async** et exécutent le travail bloquant dans `spawn_blocking` : l'interface ne doit jamais geler. Une commande `pub fn` sans `async` tourne sur le fil de la fenêtre : la déclarer `#[tauri::command(async)]` si elle est rapide et sans `.await`. Le test `commands_never_run_on_the_window_thread` (`lib.rs`) refuse toute commande restée sur ce fil.
-- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial, identifiants Windows Update au format GUID pour les pilotes).
+- **Ne jamais faire confiance au front** : tout ce qui atteint un script administrateur est validé côté Rust (liste fermée de services, clés de registre limitées à la liste des programmes installés, zones de nettoyage désignées par leur identifiant (le front n'envoie jamais de chemin), lettres de disque A-Z, identifiants de paquets sans tiret initial, identifiants Windows Update au format GUID pour les pilotes, gros fichiers désignés par l'identifiant de la dernière recherche et revérifiés avant suppression).
 - Les scripts PowerShell passent par `ps.rs` : transmis en `-EncodedCommand` (jamais de fichier `.ps1` temporaire) et toute valeur insérée est échappée avec `ps::quote`. Les programmes externes (winget…) sont lancés avec une liste d'arguments, sans interpréteur.
 - Pas de commande « shell générique » exposée au front. Les permissions de la fenêtre sont dans `src-tauri/capabilities/default.json`.
 
@@ -84,6 +84,7 @@ src-tauri/
     lib.rs             # Builder, plugins (instance unique, opener, autostart), commandes
     system.rs          # Infos système + échantillonneur CPU/RAM en arrière-plan
     scan.rs            # Nettoyage : zones connues (dossiers, Corbeille, miniatures, Windows.old), analyse et vidage
+    bigfiles.rs        # Gros fichiers : recherche (fichiers personnels seulement), suppression définitive
     repair.rs          # Services, fichiers système, périphériques, registre, démarrage, disques
     updates.rs         # Logiciels (winget), applications ouvertes, rapports d'échec
     drivers.rs         # Pilotes (Windows Update) : noms simples, point de restauration, installation un par un
@@ -212,7 +213,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Page | État | Notes |
 |------|------|-------|
 | Dashboard | Fonctionnel | Infos système, CPU et RAM en temps réel (échantillon toutes les 3 s) |
-| Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. L'onglet Gros fichiers viendra avec #55 |
+| Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. Onglet Gros fichiers (#55, `?onglet=gros-fichiers`) : voir ci-dessous |
 | Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`) |
 | Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
 | Repair | Refaite (#52) | Une analyse au clic (programmes essentiels, périphériques, programmes fantômes, disques), résultats gardés en mémoire et triés en À corriger / Tout va bien ; chaque réparation relance l'analyse de sa zone. Fichiers système en « vérification approfondie », à la demande. Écrans validés dans le Figma (pas de maquette d'origine) |
@@ -231,5 +232,10 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
   - Installation en mode passif avec `/R` (l'app redémarre après la mise à jour). Par défaut, rien n'est installé sans que l'utilisateur clique sur « Installer » (Paramètres) ; au démarrage, un simple bandeau le prévient. Seule exception : le réglage « Mises à jour automatiques » (désactivé par défaut, `prefs.rs`), que l'utilisateur active lui-même ; le bandeau annonce alors l'installation.
   - Le front n'a accès qu'à `selfupdate_check` et `selfupdate_install` : l'adresse des mises à jour et la version à installer ne viennent jamais de lui.
 - **Dossier de données** : `%APPDATA%\fr.kernshine.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes et pilotes masqués dans `hidden-updates.json` ; préférences dans `preferences.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier. L'ancien `fr.cleanerpc.desktop` (alphas Cleaner PC) n'est pas repris : seuls des testeurs les ont installées.
+- **Gros fichiers** (`bigfiles.rs`) : la suppression est définitive, donc la recherche est volontairement prudente.
+  - Seuls les **fichiers personnels** sont proposés (vidéos, archives, images disque .iso, installateurs, photos, musique, PDF) : une première version proposait les données de jeux installés hors de Program Files (.p4k, .forge, .ucas…), dont la suppression casse le jeu.
+  - Jamais parcourus : dossiers de Windows et des programmes, AppData, dossiers cachés ou commençant par un point (.git…), `node_modules`, bibliothèques de jeux (Steam, Epic, Ubisoft…), dossiers des programmes installés (« InstallLocation »), fichiers système et fichiers OneDrive absents du PC.
+  - Les dossiers du premier niveau sont parcourus en parallèle. Test sur la vraie machine : `cargo test --release real_scan -- --ignored --nocapture`.
+  - La date affichée est celle de modification : la date d'ouverture n'est pas fiable sous Windows.
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.

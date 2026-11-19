@@ -308,6 +308,46 @@ export interface Prefs {
   autoUpdate: boolean;
   /** Créer un point de restauration avant d'installer des pilotes (activé par défaut). */
   restoreBeforeDrivers: boolean;
+  /** Taille à partir de laquelle un fichier est « gros », en Mo : 100, 500, 1024 ou 5120. */
+  largeFileMinMb: number;
+}
+
+// ── Gros fichiers (bigfiles.rs) ──────────────────────────────────────────────
+
+export type GenreFichier = 'video' | 'archive' | 'image_disque' | 'installateur' | 'image' | 'audio' | 'document' | 'autre';
+
+/** Un gros fichier trouvé par la recherche. */
+export interface BigFile {
+  /** Identifiant de la dernière recherche, seul envoyé pour supprimer. */
+  id: string;
+  name: string;
+  /** « C: » */
+  drive: string;
+  /** « Vidéos », « Vacances » */
+  location: string[];
+  sizeBytes: number;
+  /** Jours depuis la dernière modification. */
+  daysSinceModified: number | null;
+  kind: GenreFichier;
+}
+
+export interface BigFileScan {
+  ok: boolean;
+  files: BigFile[];
+  drives: string[];
+  stopped: boolean;
+}
+
+export type BigFileProgress =
+  | { etape: 'disque'; drive: string }
+  | { etape: 'dossier'; drive: string; folder: string }
+  | { etape: 'disqueFini'; drive: string; files: number; bytes: number };
+
+export interface BigFileDeleteResult {
+  id: string;
+  /** `changed` : le fichier a changé depuis la recherche ; `in_use` : ouvert dans un programme. */
+  status: 'ok' | 'changed' | 'missing' | 'in_use' | 'denied' | 'unknown';
+  freedBytes: number;
 }
 
 /** Étapes de `selfupdate_install`, reçues au fil de l'eau. */

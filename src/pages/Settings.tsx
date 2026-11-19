@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, GithubLogoIcon, LightningIcon, ScalesIcon, WarningIcon } from '@phosphor-icons/react';
+import { ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, FilesIcon, GithubLogoIcon, LightningIcon, ScalesIcon, WarningIcon } from '@phosphor-icons/react';
 import type { Ack, SettingsInfo } from '../types/commands';
 import { usePrefs } from '../hooks/usePrefs';
 import Bandeau from '../components/ui/Bandeau';
@@ -23,8 +23,8 @@ function Section({ titre, description, children }: { titre: string; description?
 }
 
 /**
- * Paramètres (Figma : « Paramètres »). Entretien, Gros fichiers et Langue arriveront avec
- * leurs fonctions (#58, #55) ; le thème sombre avec l'Accueil refait (#54).
+ * Paramètres (Figma : « Paramètres »). Entretien et Langue arriveront avec leurs fonctions
+ * (#58) ; le thème sombre avec l'Accueil refait (#54).
  */
 export default function Settings() {
   const { prefs, pret, changer, erreur } = usePrefs();
@@ -97,6 +97,28 @@ export default function Settings() {
             libelle="Point de restauration avant les pilotes"
             disabled={!pret}
           />
+        </LigneReglage>
+      </Section>
+
+      <Section titre="Gros fichiers">
+        <LigneReglage icone={FilesIcon} titre="Taille minimale" description="Kernshine ne cherche que les fichiers plus lourds que cette taille.">
+          <div role="radiogroup" aria-label="Taille minimale" className="flex flex-wrap gap-2">
+            {[100, 500, 1024, 5120].map((mo) => (
+              <button
+                key={mo}
+                type="button"
+                role="radio"
+                aria-checked={prefs.largeFileMinMb === mo}
+                disabled={!pret}
+                onClick={() => changer({ largeFileMinMb: mo })}
+                className={`rounded-full px-4 py-2 text-libelle transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action-primary-bg ${
+                  prefs.largeFileMinMb === mo ? 'bg-action-primary-bg text-action-primary-fg' : 'border bg-surface text-primary hover:bg-subtle'
+                }`}
+              >
+                {mo >= 1024 ? `${mo / 1024} Go` : `${mo} Mo`}
+              </button>
+            ))}
+          </div>
         </LigneReglage>
       </Section>
 
