@@ -80,3 +80,57 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    /// Une commande Tauri ni `async fn` ni `#[tauri::command(async)]` s'exécute
+    /// sur le fil de la fenêtre : si elle est lente, l'interface gèle (bug #1).
+    #[test]
+    fn commands_never_run_on_the_window_thread() {
+        let sources = [
+            ("diagnose.rs", include_str!("diagnose.rs")),
+            ("hidden.rs", include_str!("hidden.rs")),
+            ("proc.rs", include_str!("proc.rs")),
+            ("ps.rs", include_str!("ps.rs")),
+            ("repair.rs", include_str!("repair.rs")),
+            ("report.rs", include_str!("report.rs")),
+            ("scan.rs", include_str!("scan.rs")),
+            ("selfupdate.rs", include_str!("selfupdate.rs")),
+            ("settings.rs", include_str!("settings.rs")),
+            ("system.rs", include_str!("system.rs")),
+            ("updates.rs", include_str!("updates.rs")),
+        ];
+        let mut found = 0;
+        for (file, src) in sources {
+            let lines: Vec<&str> = src.lines().map(str::trim).collect();
+            for (i, line) in lines.iter().enumerate() {
+                if !line.starts_with("#[tauri::command") {
+                    continue;
+                }
+                found += 1;
+                if line.contains("(async)") {
+                    continue;
+                }
+                let signature = lines[i + 1..]
+                    .iter()
+                    .find(|l| !l.starts_with("#[") && !l.starts_with("//"))
+                    .expect("fonction après #[tauri::command]");
+                assert!(
+                    signature.contains("async fn"),
+                    "{file}:{} : commande exécutée sur le fil de la fenêtre ({signature}). \
+                     Utiliser `async fn` + spawn_blocking, ou #[tauri::command(async)].",
+                    i + 2
+                );
+            }
+        }
+        // Autant de commandes vérifiées que de commandes enregistrées : un module
+        // oublié dans la liste ci-dessus ferait échouer le test.
+        let lib = include_str!("lib.rs");
+        let handler = &lib[lib.find("generate_handler![").expect("generate_handler")..];
+        let registered = handler[..handler.find("])").expect("fin de generate_handler")]
+            .lines()
+            .filter(|l| l.trim().ends_with(",") && l.contains("::"))
+            .count();
+        assert_eq!(found, registered, "commandes vérifiées / enregistrées");
+    }
+}
