@@ -12,8 +12,10 @@ interface FenetreConfirmationProps {
   chiffre?: string;
   /** Visuel du récapitulatif (anneau, barres de fichiers…), fourni par la page. */
   children?: ReactNode;
-  /** Action impossible à annuler : halo et bouton rouges, mention « Définitif ». */
+  /** Action risquée : halo et bouton rouges. */
   danger?: boolean;
+  /** Mention « Définitif · impossible à annuler » (par défaut avec `danger`). */
+  definitif?: boolean;
   libelleConfirmer: string;
   onConfirmer: () => void;
   onAnnuler: () => void;
@@ -24,7 +26,7 @@ interface FenetreConfirmationProps {
  * Kernshine ne fait rien d'irréversible sans ce clic. Échap ou un clic sur le voile annulent.
  */
 export default function FenetreConfirmation({
-  icone: Icone, titre, texte, chiffre, children, danger = false, libelleConfirmer, onConfirmer, onAnnuler,
+  icone: Icone, titre, texte, chiffre, children, danger = false, definitif = danger, libelleConfirmer, onConfirmer, onAnnuler,
 }: FenetreConfirmationProps) {
   useEffect(() => {
     const touche = (e: KeyboardEvent) => {
@@ -59,7 +61,7 @@ export default function FenetreConfirmation({
           <p id="fenetre-texte" className="text-corps text-secondary">{texte}</p>
         </div>
 
-        {danger && <Pastille statut="corriger">Définitif · impossible à annuler</Pastille>}
+        {definitif && <Pastille statut="corriger">Définitif · impossible à annuler</Pastille>}
 
         {children && <div className="w-full">{children}</div>}
 

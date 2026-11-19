@@ -97,9 +97,45 @@ export interface SoftwareUpdate {
   open: boolean;
 }
 
-export interface DriverUpdate {
-  title: string;
-  sizeMB: number;
+// ── Pilotes (drivers.rs) ─────────────────────────────────────────────────────
+
+/** Un pilote proposé par Windows Update. */
+export interface Driver {
+  /** Identifiant Windows Update, seul envoyé pour l'installation. */
+  id: string;
+  /** Clé pour « Ne plus proposer ». */
+  key: string;
+  /** Nom simple : « Carte graphique NVIDIA ». */
+  name: string;
+  currentVersion: string | null;
+  newVersion: string | null;
+  /** Date du nouveau pilote (AAAA-MM-JJ). */
+  date: string | null;
+  sizeBytes: number;
+  needsRestart: boolean;
+}
+
+export interface DriverScan {
+  ok: boolean;
+  data: Driver[];
+  hiddenCount: number;
+  error?: string;
+}
+
+/** Avancement de l'installation des pilotes, reçu par un Channel. */
+export type DriverProgress =
+  | { etape: 'sauvegarde' }
+  | { etape: 'sauvegardeFaite'; ok: boolean }
+  | { etape: 'debut'; id: string }
+  | { etape: 'fin'; id: string; ok: boolean; restart: boolean }
+  | { etape: 'saute'; id: string }
+  | { etape: 'absent'; id: string };
+
+export interface DriverInstallResult {
+  /** `restore_failed` : rien installé, faute de point de restauration ; `refused` : autorisation refusée. */
+  status: 'done' | 'restore_failed' | 'refused' | 'error';
+  restorePoint: boolean;
+  restartNeeded: boolean;
 }
 
 /** Analyse des logiciels : la liste proposée, et à part les programmes que l'utilisateur a masqués. */
@@ -108,18 +144,6 @@ export interface SoftwareScanResult {
   data: SoftwareUpdate[];
   hidden: SoftwareUpdate[];
   error?: string;
-}
-
-export interface UpdatesListResult<T> {
-  ok: boolean;
-  data: T[];
-  error?: string;
-}
-
-export interface InstallResult {
-  ok: boolean;
-  installed: number;
-  errors: number;
 }
 
 export interface ServiceInfo {

@@ -90,11 +90,21 @@ pub fn unhide(dir: &Path, id: &str) -> io::Result<Vec<String>> {
     })
 }
 
-/// Propose de nouveau tous les programmes masqués.
-pub fn unhide_all(dir: &Path) -> io::Result<Vec<String>> {
+/// Préfixe des pilotes masqués : les programmes et les pilotes partagent le fichier,
+/// mais chaque page ne propose de nouveau que les siens.
+pub const DRIVER_PREFIX: &str = "pilote:";
+
+pub fn is_driver(id: &str) -> bool {
+    id.to_lowercase().starts_with(DRIVER_PREFIX)
+}
+
+/// Propose de nouveau tous les pilotes masqués (`drivers`) ou tous les programmes masqués.
+pub fn unhide_all(dir: &Path, drivers: bool) -> io::Result<Vec<String>> {
     locked(|| {
-        write(dir, &[])?;
-        Ok(Vec::new())
+        let mut ids = read(dir);
+        ids.retain(|h| is_driver(h) != drivers);
+        write(dir, &ids)?;
+        Ok(ids)
     })
 }
 
@@ -153,11 +163,17 @@ mod tests {
     }
 
     #[test]
-    fn unhide_all_empties_the_list() {
+    fn unhide_all_keeps_the_other_kind() {
         let dir = temp_dir("all");
         hide(&dir, "A.A").unwrap();
         hide(&dir, "B.B").unwrap();
-        assert!(unhide_all(&dir).unwrap().is_empty());
+        hide(&dir, "pilote:pci\\ven_8086").unwrap();
+        // Les programmes reviennent, le pilote reste masqué.
+        assert_eq!(
+            unhide_all(&dir, false).unwrap(),
+            vec!["pilote:pci\\ven_8086"]
+        );
+        assert!(unhide_all(&dir, true).unwrap().is_empty());
         assert!(load(&dir).is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
