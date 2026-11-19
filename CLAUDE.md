@@ -104,8 +104,9 @@ src/
     UpdateBanner.tsx   # Bandeau « nouvelle version de Kernshine »
   components/ui/       # Composants communs du Figma (page Composants)
   components/nettoyage/ # Morceaux de la page Nettoyage (groupes, bilan)
+  components/applications/ # Onglets Mises à jour et Démarrage de la page Applications
   lib/format.ts        # Tailles (« 6,1 Go »), listes (« a, b et c »), état d'un disque
-  pages/               # Dashboard, Cleaning, Repair, Updates, Settings, NotFound
+  pages/               # Dashboard, Cleaning, Applications, Drivers, Repair, Settings, NotFound
 ```
 
 ### Routing
@@ -118,12 +119,13 @@ Routes actuelles :
 
 - `/` → Accueil (`Dashboard`)
 - `/cleaning` → Nettoyage
-- `/applications` → Applications (pour l'instant la page `Updates`, logiciels et pilotes ; découpée en onglets avec #50)
+- `/applications` → Applications, onglet Mises à jour ; `/applications?onglet=demarrage` → onglet Démarrage (Désinstallation arrive avec #56)
+- `/drivers` → Pilotes (version provisoire : la page des maquettes arrive avec #51)
 - `/repair` → Réparation
 - `/settings` → Paramètres
 - `/updates` → redirige vers `/applications`
 
-Pilotes (`/drivers`, #51) et Santé (`/health`, #57) sont déjà dans `Navigation.tsx` avec `bientot: true` : ils restent masqués tant que leur page n'existe pas. Retirer `bientot` en ajoutant la route.
+Santé (`/health`, #57) est déjà dans `Navigation.tsx` avec `bientot: true` : il reste masqué tant que sa page n'existe pas. Retirer `bientot` en ajoutant la route.
 
 Toutes les pages sont chargées en **lazy** via `React.lazy()` + `<Suspense>`.
 
@@ -209,8 +211,9 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 |------|------|-------|
 | Dashboard | Fonctionnel | Infos système, CPU et RAM en temps réel (échantillon toutes les 3 s) |
 | Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. L'onglet Gros fichiers viendra avec #55 |
-| Repair | Fonctionnel | Services, fichiers système, périphériques, registre, démarrage, disques |
-| Updates | Fonctionnel | Logiciels via winget (progression en continu), pilotes via Windows Update |
+| Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`) |
+| Drivers | Provisoire | Pilotes via Windows Update, sortis de l'ancienne page Mises à jour ; page des maquettes avec #51 |
+| Repair | Fonctionnel | Services, fichiers système, périphériques, registre, disques (le démarrage est passé dans Applications) |
 | Settings | Partiel | Version, mise à jour de Kernshine, lancement avec Windows ; thème, langue, télémétrie à venir |
 
 ## Points d'attention

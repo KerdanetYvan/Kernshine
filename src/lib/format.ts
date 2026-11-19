@@ -25,6 +25,22 @@ export function formatListe(elements: string[], max = 3): string {
   return `${elements.slice(0, -1).join(', ')} et ${elements[elements.length - 1]}`;
 }
 
+/** Temps écoulé depuis un instant : « il y a quelques secondes », « il y a 5 min », « il y a 2 h ». */
+export function depuis(instant: number, maintenant = Date.now()): string {
+  const minutes = Math.floor((maintenant - instant) / 60_000);
+  if (minutes < 1) return 'il y a quelques secondes';
+  if (minutes < 60) return `il y a ${minutes} min`;
+  const heures = Math.floor(minutes / 60);
+  if (heures < 24) return `il y a ${heures} h`;
+  const jours = Math.floor(heures / 24);
+  return `il y a ${jours} jour${jours > 1 ? 's' : ''}`;
+}
+
+/** Accorde un mot avec un nombre : `pluriel(2, 'application')` → « applications ». */
+export function pluriel(n: number, singulier: string, plurielForme = `${singulier}s`): string {
+  return n > 1 ? plurielForme : singulier;
+}
+
 /**
  * État d'un disque d'après sa place libre : moins de 10 % « À corriger »,
  * moins de 20 % « À surveiller », sinon « Tout va bien ».

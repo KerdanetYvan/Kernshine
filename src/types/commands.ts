@@ -93,6 +93,8 @@ export interface SoftwareUpdate {
   source: string;
   /** Version installée illisible : le programme réapparaît à chaque analyse. */
   versionUnknown: boolean;
+  /** L'application semble ouverte : décochée d'office, avec un bouton pour la fermer. */
+  open: boolean;
 }
 
 export interface DriverUpdate {
@@ -176,7 +178,10 @@ export interface StartupItem {
   name:    string;
   command: string;
   enabled: boolean;
+  /** `user` : lancé pour ce compte ; `system` : pour tous les comptes (autorisation de Windows). */
   source:  'user' | 'system';
+  /** Nécessaire au bon fonctionnement : affiché verrouillé, avec ce nom et cette description. */
+  essential: { label: string; description: string } | null;
 }
 
 export interface StartupScanResult {
@@ -229,7 +234,8 @@ export type FailureKind = 'needs_permission' | 'close_app' | 'retry_later' | 'up
 
 export interface SwProgress {
   id: string;
-  status: 'installing' | 'ok' | 'error';
+  /** `skipped` : arrêt demandé avant ce programme, rien n'a été installé. */
+  status: 'installing' | 'ok' | 'error' | 'skipped';
   reason?: string;
   kind?: FailureKind;
   reboot?: 'app' | 'system';
@@ -254,7 +260,8 @@ export interface ElevatedInstallResult {
 export interface CloseAppResult {
   ok: boolean;
   processName?: string;
-  reason?: 'not_found' | 'ambiguous' | 'error';
+  /** `still_open` : fermée comme avec sa croix, elle tourne encore (zone de notification). */
+  reason?: 'not_found' | 'ambiguous' | 'error' | 'still_open';
   candidates?: string[];
 }
 
