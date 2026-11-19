@@ -186,7 +186,7 @@ Les messages d'échec des mises à jour viennent de `diagnose.rs` (un message en
 
 ## Points d'attention
 
-- **Icônes** : `src-tauri/icons/` contient les icônes par défaut de Tauri. À remplacer par le logo Kernshine (#30, `npx tauri icon`), avec la version simplifiée du logo pour les tailles sous 32 px.
+- **Logo et icônes** : le logo est dans `src/assets/logo/` (version complète et version simplifiée, variante claire du brand board). Les icônes de `src-tauri/icons/` se régénèrent avec `npm run icons` (`scripts/icons.mjs`), jamais avec `tauri icon` seul : le script reconstruit `icon.ico` avec la version simplifiée en 16 et 24 px, comme le demande la charte sous 32 px. Dans l'interface, utiliser aussi la version simplifiée sous 32 px.
 - **Installeur** : NSIS, aujourd'hui `installMode: currentUser`. Choix « pour moi / pour tous », dossier et raccourci sur le bureau suivis dans #33.
 - **Signature** : l'installeur n'est pas signé (avertissement SmartScreen).
 - **Dossier de données** : `%APPDATA%\fr.kernshine.desktop` (un rapport par session de mise à jour dans `logs\`, les 30 derniers sont conservés ; programmes masqués dans `hidden-updates.json`). Changer l'identifiant dans `tauri.conf.json` déplace ce dossier. L'ancien `fr.cleanerpc.desktop` (alphas Cleaner PC) n'est pas repris : seuls des testeurs les ont installées.
