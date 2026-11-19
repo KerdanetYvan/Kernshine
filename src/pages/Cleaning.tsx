@@ -1,332 +1,333 @@
-﻿import { useState } from 'react';
-import { CheckCircleIcon, CheckSquareIcon, MagnifyingGlassIcon, ShieldWarningIcon, SquareIcon, TrashIcon, WarningIcon, XCircleIcon } from '@phosphor-icons/react';
-import { invoke } from '@tauri-apps/api/core';
-import type { TempDir, CleanResult, DirCleanResult, ScanResult } from '../types/commands';
+﻿import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircleIcon, MagnifyingGlassIcon, TrashIcon } from '@phosphor-icons/react';
+import { Channel, invoke } from '@tauri-apps/api/core';
+import type { Avancement, CleanResult, DiskSpace, ScanResult, ZoneInfo } from '../types/commands';
+import { formatListe, formatOctets } from '../lib/format';
+import Bandeau from '../components/ui/Bandeau';
 import Bouton from '../components/ui/Bouton';
+import BoutonScan from '../components/ui/BoutonScan';
+import Carte from '../components/ui/Carte';
 import EnTetePage from '../components/ui/EnTetePage';
+import FenetreConfirmation from '../components/ui/FenetreConfirmation';
+import GraphiqueAnneau from '../components/ui/GraphiqueAnneau';
+import ProgressionCirculaire from '../components/ui/ProgressionCirculaire';
+import BilanNettoyage from '../components/nettoyage/BilanNettoyage';
+import GroupeZones from '../components/nettoyage/GroupeZones';
+import { GROUPES } from '../components/nettoyage/groupes';
 
-type Phase = 'idle' | 'scanning' | 'results' | 'cleaning' | 'done';
+type Phase = 'accueil' | 'analyse' | 'resultats' | 'nettoyage' | 'termine';
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} Go`;
+interface ZoneFaite {
+  id: string;
+  libelle: string;
+  octets: number;
 }
 
+/** Les deux dernières zones terminées, sous le cadran (« Corbeille · 4,8 Go »). */
+function DernieresZones({ faites, suffixe }: { faites: ZoneFaite[]; suffixe: string }) {
+  const dernieres = faites.filter((f) => f.octets > 0).slice(-2);
+  if (dernieres.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+      {dernieres.map((f) => (
+        <li key={f.id} className="flex items-center gap-1.5 text-corps-petit text-secondary">
+          <CheckCircleIcon className="size-4 text-status-ok-fg" />
+          {f.libelle} · {formatOctets(f.octets)}{suffixe}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const disques = () => invoke<DiskSpace[]>('system_get_disks').catch(() => [] as DiskSpace[]);
+
 export default function Cleaning() {
-  const [phase, setPhase]             = useState<Phase>('idle');
-  const [dirs, setDirs]               = useState<TempDir[]>([]);
-  const [selected, setSelected]       = useState<Set<string>>(new Set());
-  const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
-  const [runningApps, setRunningApps] = useState<string[]>([]);
-  const [showModal, setShowModal]     = useState(false);
-  const [warningApps, setWarningApps] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const [phase, setPhase] = useState<Phase>('accueil');
+  const [zones, setZones] = useState<ZoneInfo[]>([]);
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [deplies, setDeplies] = useState<Set<string>>(new Set(['windows', 'navigateurs']));
+  const [enCours, setEnCours] = useState<{ libelle: string; description: string } | null>(null);
+  const [autorisation, setAutorisation] = useState(false);
+  const [faites, setFaites] = useState<ZoneFaite[]>([]);
+  const [confirmer, setConfirmer] = useState(false);
+  const [arretDemande, setArretDemande] = useState(false);
+  const [resultat, setResultat] = useState<CleanResult | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [disquesAvant, setDisquesAvant] = useState<DiskSpace[]>([]);
+  const [disquesApres, setDisquesApres] = useState<DiskSpace[]>([]);
+  // Une analyse annulée continue côté Rust (elle ne fait que lire) : on ignore sa réponse.
+  const analyseCourante = useRef(0);
 
-  const scan = async () => {
-    setPhase('scanning');
-    setDirs([]);
-    setSelected(new Set());
-    setCleanResult(null);
-    setRunningApps([]);
+  const analyser = async () => {
+    const numero = ++analyseCourante.current;
+    setPhase('analyse');
+    setFaites([]);
+    setEnCours(null);
+    setErreur(null);
+    setResultat(null);
 
-    const res = await invoke<ScanResult>('scan_get_temp_dirs');
-    const found = res.data.filter(d => d.fileCount > 0);
+    const libelles = new Map<string, string>();
+    const canal = new Channel<Avancement>();
+    canal.onmessage = (a) => {
+      if (analyseCourante.current !== numero) return;
+      if (a.etape === 'debut') {
+        libelles.set(a.id, a.libelle);
+        setEnCours({ libelle: a.libelle, description: a.description });
+      } else if (a.etape === 'fin') {
+        setFaites((f) => [...f, { id: a.id, libelle: libelles.get(a.id) ?? '', octets: a.octets }]);
+      }
+    };
 
-    setDirs(found);
-    setSelected(new Set(found.map(d => d.path)));
-    setRunningApps(res.runningApps ?? []);
-    setPhase('results');
-  };
-
-  const toggleAll = () => {
-    if (selected.size === dirs.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(dirs.map(d => d.path)));
+    try {
+      const res = await invoke<ScanResult>('scan_get_zones', { onProgress: canal });
+      if (analyseCourante.current !== numero) return;
+      const trouvees = res.zones.filter((z) => z.sizeBytes > 0);
+      setZones(trouvees);
+      setSelection(new Set(trouvees.filter((z) => z.risque === 'sans_risque').map((z) => z.id)));
+      setPhase('resultats');
+    } catch (e) {
+      console.warn('analyse du nettoyage', e);
+      if (analyseCourante.current !== numero) return;
+      setErreur("L'analyse n'a pas pu aboutir. Réessayez dans un instant.");
+      setPhase('accueil');
     }
   };
 
-  const toggle = (dirPath: string) => {
-    setSelected(prev => {
+  const annulerAnalyse = () => {
+    analyseCourante.current++;
+    setPhase('accueil');
+  };
+
+  const basculer = (ids: string[], coche: boolean) =>
+    setSelection((prev) => {
       const next = new Set(prev);
-      if (next.has(dirPath)) {
-        next.delete(dirPath);
-      } else {
-        next.add(dirPath);
-      }
+      ids.forEach((id) => (coche ? next.add(id) : next.delete(id)));
       return next;
     });
-  };
 
-  const requestClean = () => {
-    if (selected.size === 0) return;
+  const deplier = (groupe: string) =>
+    setDeplies((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupe)) next.delete(groupe);
+      else next.add(groupe);
+      return next;
+    });
 
-    const appsBlocking = runningApps.filter(app =>
-      dirs.some(d => selected.has(d.path) && d.lockedByProcess === app)
-    );
+  const choisies = zones.filter((z) => selection.has(z.id));
+  const totalTrouve = zones.reduce((s, z) => s + z.sizeBytes, 0);
+  const totalChoisi = choisies.reduce((s, z) => s + z.sizeBytes, 0);
 
-    if (appsBlocking.length > 0) {
-      setWarningApps(appsBlocking);
-      setShowModal(true);
-      return;
+  const nettoyer = async () => {
+    setConfirmer(false);
+    setPhase('nettoyage');
+    setFaites([]);
+    setEnCours(null);
+    setAutorisation(false);
+    setArretDemande(false);
+    setErreur(null);
+    setDisquesAvant(await disques());
+
+    const parId = new Map(zones.map((z) => [z.id, z]));
+    const canal = new Channel<Avancement>();
+    canal.onmessage = (a) => {
+      if (a.etape === 'debut') {
+        setEnCours({ libelle: a.libelle, description: a.description });
+      } else if (a.etape === 'fin') {
+        setFaites((f) => [...f, { id: a.id, libelle: parId.get(a.id)?.libelle ?? '', octets: a.octets }]);
+      } else {
+        setAutorisation(true);
+      }
+    };
+
+    try {
+      setResultat(await invoke<CleanResult>('clean_zones', { ids: choisies.map((z) => z.id), onProgress: canal }));
+    } catch (e) {
+      console.warn('nettoyage', e);
+      setResultat(null);
+      setErreur("Le nettoyage s'est arrêté avant la fin. Relancez une analyse pour voir ce qu'il reste.");
     }
-
-    doClean();
+    setDisquesApres(await disques());
+    setPhase('termine');
   };
 
-  const doClean = async () => {
-    setShowModal(false);
-    setPhase('cleaning');
-
-    const paths = [...selected];
-    const hasAdmin = dirs.some(d => d.requiresAdmin && selected.has(d.path));
-    if (hasAdmin) await new Promise(r => setTimeout(r, 100));
-
-    const result = await invoke<CleanResult>('clean_delete_dirs', { paths });
-    setCleanResult(result);
-    setPhase('done');
+  const arreter = () => {
+    setArretDemande(true);
+    invoke('clean_stop').catch(() => {});
   };
 
-  const reset = () => {
-    setPhase('idle');
-    setDirs([]);
-    setSelected(new Set());
-    setCleanResult(null);
-    setRunningApps([]);
-  };
+  const libere = faites.reduce((s, f) => s + f.octets, 0);
+  const pourcent = totalChoisi > 0 ? Math.min(99, Math.round((libere / totalChoisi) * 100)) : 0;
+  const totalAnalyse = faites.reduce((s, f) => s + f.octets, 0);
 
-  const selectedDirs  = dirs.filter(d => selected.has(d.path));
-  const totalSelected = selectedDirs.reduce((acc, d) => acc + d.sizeBytes, 0);
-  const hasAdmin      = selectedDirs.some(d => d.requiresAdmin);
+  // Applications ouvertes qui gardent une partie des zones cochées.
+  const ouvertes = [...new Set(choisies.map((z) => z.lockedByProcess).filter((a): a is string => !!a))];
+  const demandeAutorisation = choisies.some((z) => z.requiresAdmin);
+  const ancienWindows = selection.has('ancien_windows');
 
-  const dirResultMap  = new Map<string, DirCleanResult>(
-    (cleanResult?.dirs ?? []).map(r => [r.path, r])
-  );
+  const texteConfirmation = [
+    'Ces fichiers inutiles seront supprimés. Vos documents, photos et programmes ne sont pas touchés.',
+    selection.has('corbeille') && 'La Corbeille sera vidée.',
+    ancienWindows && 'Vous ne pourrez plus revenir à la version précédente de Windows.',
+    demandeAutorisation && "Windows vous demandera l'autorisation pour certains dossiers.",
+  ].filter(Boolean).join(' ');
+
+  const segments = GROUPES.map((g) => {
+    const valeur = choisies.filter((z) => z.groupe === g.id).reduce((s, z) => s + z.sizeBytes, 0);
+    return { libelle: g.nom, valeur, valeurAffichee: formatOctets(valeur), couleur: g.couleur };
+  }).filter((s) => s.valeur > 0);
 
   return (
-    <section className="space-y-6">
+    <section className="flex flex-col gap-8">
+      <EnTetePage titre="Nettoyage" sousTitre="Trouvez ce qui encombre votre PC, puis choisissez ce que vous nettoyez." />
 
-      <EnTetePage
-        titre="Nettoyage"
-        sousTitre="Trouvez ce qui encombre votre PC, puis choisissez ce que vous nettoyez."
-        actions={
-          phase === 'idle' || phase === 'done' ? (
-            <Bouton variante="secondaire" taille="compact" onClick={scan}>
-              <MagnifyingGlassIcon className="size-5" />
-              {phase === 'done' ? 'Rescanner' : 'Scanner'}
-            </Bouton>
-          ) : null
-        }
-      />
-
-      {/* Scanning */}
-      {phase === 'scanning' && (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neutral-900" />
-          <p className="text-neutral-500">Analyse en cours…</p>
+      {phase === 'accueil' && (
+        <div className="flex flex-col items-center gap-6 py-4 text-center">
+          <BoutonScan libelle="Lancer le scan" onClick={analyser} />
+          <p className="text-corps text-secondary">Cela prend quelques instants. Rien n'est supprimé sans votre accord.</p>
+          {erreur && <Bandeau type="corriger">{erreur}</Bandeau>}
         </div>
       )}
 
-      {/* Cleaning */}
-      {phase === 'cleaning' && (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neutral-900" />
-          <p className="text-neutral-500">Nettoyage en cours…</p>
-          {hasAdmin && (
-            <p className="text-sm text-amber-600 text-center max-w-sm">
-              Une fenêtre s'est ouverte pour nettoyer les dossiers système.
-              Cliquez sur <strong>Oui</strong> à la demande de l'UAC.
+      {phase === 'analyse' && (
+        <div className="flex flex-col items-center gap-4 py-4 text-center" aria-live="polite">
+          <ProgressionCirculaire libelle="Analyse en cours">
+            <MagnifyingGlassIcon className="size-12 text-action-primary-bg" />
+          </ProgressionCirculaire>
+          <div className="flex flex-col gap-1">
+            <p className="text-titre-3 font-titre text-primary">{enCours ? `Analyse : ${enCours.libelle}…` : 'Analyse en cours…'}</p>
+            <p className="text-corps text-secondary">
+              {enCours?.description}
+              {totalAnalyse > 0 && `. ${formatOctets(totalAnalyse)} trouvés jusqu'ici.`}
             </p>
+          </div>
+          <DernieresZones faites={faites} suffixe="" />
+          <Bouton variante="secondaire" taille="compact" onClick={annulerAnalyse}>Annuler</Bouton>
+        </div>
+      )}
+
+      {phase === 'resultats' && zones.length === 0 && (
+        <Carte className="flex items-center gap-6 px-8">
+          <div className="grid size-[72px] shrink-0 place-items-center rounded-full bg-status-ok-bg">
+            <CheckCircleIcon className="size-10 text-status-ok-fg" />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <h2 className="text-titre-2 text-primary">Votre PC est déjà propre</h2>
+            <p className="text-corps text-secondary">Kernshine n'a rien trouvé d'inutile à supprimer pour le moment.</p>
+          </div>
+          <Bouton variante="secondaire" taille="compact" onClick={analyser}>Relancer</Bouton>
+        </Carte>
+      )}
+
+      {phase === 'resultats' && zones.length > 0 && (
+        <>
+          <Carte className="flex items-center gap-6 px-8">
+            <p className="whitespace-nowrap font-titre text-chiffre-grand text-primary">{formatOctets(totalTrouve, true)}</p>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="text-corps-gras text-primary">peuvent être libérés sur votre PC</p>
+              <p className="text-corps-petit text-secondary">Analyse terminée. Décochez ce que vous souhaitez garder.</p>
+            </div>
+          </Carte>
+
+          {ouvertes.length > 0 && (
+            <Bandeau type="surveiller">
+              {ouvertes.length > 1
+                ? `${formatListe(ouvertes)} sont ouverts : une partie de leurs fichiers restera. Fermez-les pour tout nettoyer.`
+                : `${ouvertes[0]} est ouvert : une partie de ses fichiers restera. Fermez-le pour tout nettoyer.`}
+            </Bandeau>
           )}
-        </div>
-      )}
 
-      {/* Phase résultats : liste avec cases à cocher */}
-      {phase === 'results' && dirs.length > 0 && (
-        <>
-          <div className="flex items-center gap-3 pb-2 border-b border-neutral-200">
-            <button onClick={toggleAll} className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
-              {selected.size === dirs.length
-                ? <CheckSquareIcon className="h-4 w-4 text-neutral-900" />
-                : <SquareIcon className="h-4 w-4" />}
-              Tout sélectionner
-            </button>
-            <span className="text-neutral-300">|</span>
-            <span className="text-sm text-neutral-500">{dirs.length} dossier{dirs.length > 1 ? 's' : ''} trouvé{dirs.length > 1 ? 's' : ''}</span>
-          </div>
-
-          <ul className="space-y-2">
-            {dirs.map(dir => {
-              const isSelected = selected.has(dir.path);
+          <div className="divide-y overflow-hidden rounded-xl border bg-surface">
+            {GROUPES.map((g) => {
+              const duGroupe = zones.filter((z) => z.groupe === g.id);
+              if (duGroupe.length === 0) return null;
               return (
-                <li
-                  key={dir.path}
-                  onClick={() => toggle(dir.path)}
-                  className={[
-                    'flex items-center gap-4 p-4 border transition-colors cursor-pointer',
-                    isSelected
-                      ? 'bg-neutral-900/5 border-neutral-900/30'
-                      : 'bg-white border-neutral-200 opacity-60',
-                  ].join(' ')}
-                >
-                  <button onClick={e => { e.stopPropagation(); toggle(dir.path); }} className="flex-shrink-0">
-                    {isSelected
-                      ? <CheckSquareIcon className="h-5 w-5 text-neutral-900" />
-                      : <SquareIcon className="h-5 w-5 text-neutral-400" />}
-                  </button>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">{dir.label}</span>
-                      {dir.requiresAdmin && (
-                        <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5">
-                          <ShieldWarningIcon className="h-3 w-3" />
-                          Admin
-                        </span>
-                      )}
-                      {dir.lockedByProcess && (
-                        <span className="flex items-center gap-1 text-xs text-neutral-500 bg-neutral-100 border border-neutral-300 px-1.5 py-0.5">
-                          <WarningIcon className="h-3 w-3" />
-                          Fermez {dir.lockedByProcess} d'abord
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-neutral-400 truncate mt-0.5">{dir.path}</p>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-semibold text-sm">{formatBytes(dir.sizeBytes)}</p>
-                    <p className="text-xs text-neutral-400">{dir.fileCount} fichier{dir.fileCount > 1 ? 's' : ''}</p>
-                  </div>
-                </li>
+                <GroupeZones
+                  key={g.id}
+                  groupe={g}
+                  zones={duGroupe}
+                  selection={selection}
+                  onBasculer={basculer}
+                  deplie={deplies.has(g.id)}
+                  onDeplier={() => deplier(g.id)}
+                />
               );
             })}
-          </ul>
+          </div>
+
+          {/* Barre de sélection, collée au bas de la zone de contenu */}
+          <div className="sticky bottom-0 -mx-12 -mb-12 flex min-h-[88px] items-center gap-4 border-t bg-surface px-12 py-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="text-corps-gras text-primary">
+                {choisies.length > 0 ? `${formatOctets(totalChoisi)} sélectionnés` : 'Rien de sélectionné'}
+              </p>
+              <p className="text-corps-petit text-secondary">sur {formatOctets(totalTrouve)} qui peuvent être libérés</p>
+            </div>
+            <Bouton onClick={() => setConfirmer(true)} disabled={choisies.length === 0}>Nettoyer</Bouton>
+          </div>
         </>
       )}
 
-      {/* Phase done : récap par dossier avec icône de statut */}
-      {phase === 'done' && cleanResult && dirs.length > 0 && (
-        <>
-          <div className="pb-2 border-b border-neutral-200">
-            <span className="text-sm text-neutral-600">
-              <span className="font-medium">{formatBytes(cleanResult.freedBytes)}</span> libérés
-              {cleanResult.deletedCount > 0 && ` · ${cleanResult.deletedCount} élément${cleanResult.deletedCount > 1 ? 's' : ''} supprimé${cleanResult.deletedCount > 1 ? 's' : ''}`}
-            </span>
+      {phase === 'nettoyage' && (
+        <div className="flex flex-col items-center gap-4 py-4 text-center" aria-live="polite">
+          <ProgressionCirculaire valeur={pourcent} libelle="Nettoyage en cours">
+            <p className="font-titre text-chiffre text-primary">{pourcent}&#8239;%</p>
+            <p className="text-corps-petit text-secondary">nettoyé</p>
+          </ProgressionCirculaire>
+          <div className="flex flex-col gap-1">
+            <p className="text-titre-3 font-titre text-primary">
+              {autorisation
+                ? "Windows vous demande l'autorisation"
+                : enCours ? `Nettoyage : ${enCours.libelle}…` : 'Préparation du nettoyage…'}
+            </p>
+            <p className="text-corps text-secondary">
+              {autorisation
+                ? 'Cliquez sur « Oui » pour nettoyer les dossiers protégés de Windows.'
+                : `${formatOctets(libere)} libérés sur ${formatOctets(totalChoisi)}. Ne fermez pas Kernshine pendant le nettoyage.`}
+            </p>
           </div>
-
-          <ul className="space-y-2">
-            {dirs.filter(d => selected.has(d.path)).map(dir => {
-              const r = dirResultMap.get(dir.path);
-              return (
-                <li key={dir.path} className="flex items-center gap-4 p-4 border border-neutral-200 bg-white">
-                  <span className="flex-shrink-0">
-                    {(r?.status === 'ok' || r?.status === 'partial') && <CheckCircleIcon className="h-5 w-5 text-green-500" />}
-                    {r?.status === 'denied'                          && <XCircleIcon      className="h-5 w-5 text-red-500"   />}
-                  </span>
-
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm">{dir.label}</span>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                      {(r?.status === 'ok' || r?.status === 'partial') && 'Nettoyé'}
-                      {r?.status === 'denied'                          && 'Accès refusé'}
-                    </p>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-semibold text-sm">{formatBytes(r?.freedBytes ?? 0)}</p>
-                    <p className="text-xs text-neutral-400">{dir.fileCount} fichier{dir.fileCount > 1 ? 's' : ''}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-
-      {/* Scan vide */}
-      {phase === 'results' && dirs.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-48 text-neutral-400 gap-2">
-          <TrashIcon weight="duotone" className="h-10 w-10" />
-          <p>Aucun fichier temporaire détecté.</p>
+          <DernieresZones faites={faites} suffixe=" libérés" />
+          <Bouton variante="secondaire" taille="compact" onClick={arreter} disabled={arretDemande || autorisation}>
+            {arretDemande ? 'Arrêt en cours…' : 'Arrêter'}
+          </Bouton>
         </div>
       )}
 
-      {/* Bottom action bar */}
-      {phase === 'results' && dirs.length > 0 && (
-        <div className="flex items-center justify-between pt-4 border-t border-neutral-200">
-          <div className="text-sm text-neutral-600">
-            {selected.size > 0 ? (
-              <>
-                <span className="font-medium">{formatBytes(totalSelected)}</span>
-                {' '}à libérer · {selected.size} dossier{selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
-                {hasAdmin && (
-                  <span className="ml-2 text-amber-600 inline-flex items-center gap-1">
-                    <ShieldWarningIcon className="h-3.5 w-3.5" />
-                    Élévation UAC requise
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-neutral-400">Aucun dossier sélectionné</span>
+      {phase === 'termine' && (
+        <BilanNettoyage
+          zones={zones}
+          selection={selection}
+          resultat={resultat}
+          erreur={erreur}
+          disquesAvant={disquesAvant}
+          disquesApres={disquesApres}
+          onRelancer={analyser}
+          onAccueil={() => navigate('/')}
+        />
+      )}
+
+      {confirmer && (
+        <FenetreConfirmation
+          icone={TrashIcon}
+          chiffre={formatOctets(totalChoisi)}
+          titre="Nettoyer votre PC ?"
+          texte={texteConfirmation}
+          danger={ancienWindows}
+          libelleConfirmer="Lancer le nettoyage"
+          onConfirmer={nettoyer}
+          onAnnuler={() => setConfirmer(false)}
+        >
+          <div className="flex flex-col gap-3">
+            <GraphiqueAnneau segments={segments} centre={`${segments.length} zone${segments.length > 1 ? 's' : ''}`} />
+            {ouvertes.length > 0 && (
+              <Bandeau type="surveiller">
+                {formatListe(ouvertes)} {ouvertes.length > 1 ? 'sont ouverts' : 'est ouvert'} : fermez-{ouvertes.length > 1 ? 'les' : 'le'} pour tout nettoyer.
+              </Bandeau>
             )}
           </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={reset}
-              className="px-4 py-2 text-sm text-neutral-600 border border-neutral-200 hover:bg-neutral-50 transition-colors"
-            >
-              Annuler
-            </button>
-            <button
-              onClick={requestClean}
-              disabled={selected.size === 0}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <TrashIcon className="h-4 w-4" />
-              Nettoyer la sélection
-            </button>
-          </div>
-        </div>
+        </FenetreConfirmation>
       )}
-      {/* Modale : apps à fermer avant nettoyage */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white w-full max-w-sm mx-4 p-6 space-y-4 shadow-xl">
-            <h2 className="font-semibold text-base">Avant de nettoyer…</h2>
-            <p className="text-sm text-neutral-600">
-              Ces applications sont ouvertes et risquent de bloquer une partie du nettoyage.
-              Fermez-les d'abord pour de meilleurs résultats :
-            </p>
-            <ul className="space-y-2">
-              {warningApps.map(app => (
-                <li key={app} className="flex items-center gap-2 text-sm font-medium">
-                  <span className="h-1.5 w-1.5 rounded-full bg-neutral-900 flex-shrink-0" />
-                  {app}
-                </li>
-              ))}
-            </ul>
-            <div className="flex gap-2 justify-end pt-2 border-t border-neutral-100">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-neutral-600 border border-neutral-200 hover:bg-neutral-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={doClean}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-              >
-                <TrashIcon className="h-4 w-4" />
-                Nettoyer quand même
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </section>
   );
 }

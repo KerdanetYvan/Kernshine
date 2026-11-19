@@ -32,35 +32,57 @@ export interface SystemInfo {
   statsHistory: StatPoint[];
 }
 
-export interface TempDir {
-  path: string;
-  label: string;
-  requiresAdmin: boolean;
+// ── Nettoyage (scan.rs) ──────────────────────────────────────────────────────
+
+export type GroupeZone = 'windows' | 'navigateurs' | 'applications' | 'autres';
+/** « Sans risque » est coché d'office ; « À vérifier » attend que l'utilisateur coche. */
+export type RisqueZone = 'sans_risque' | 'a_verifier';
+
+/** Une zone que Kernshine sait nettoyer (liste fermée côté Rust). */
+export interface ZoneInfo {
+  id: string;
+  groupe: GroupeZone;
+  libelle: string;
+  description: string;
+  risque: RisqueZone;
   sizeBytes: number;
   fileCount: number;
+  requiresAdmin: boolean;
   lockedByProcess?: string;
 }
 
 export interface ScanResult {
   ok: boolean;
-  data: TempDir[];
+  zones: ZoneInfo[];
   runningApps: string[];
 }
 
-export interface DirCleanResult {
-  path: string;
-  status: 'ok' | 'partial' | 'denied';
+/** Avancement de l'analyse et du nettoyage, reçu par un Channel. */
+export type Avancement =
+  | { etape: 'debut'; id: string; libelle: string; description: string }
+  | { etape: 'fin'; id: string; octets: number }
+  | { etape: 'autorisation' };
+
+export interface ZoneCleanResult {
+  id: string;
+  /** `skipped` : arrêt demandé avant cette zone ; `refused` : zone inconnue. */
+  status: 'ok' | 'partial' | 'failed' | 'skipped' | 'refused';
   freedBytes: number;
-  deletedCount: number;
-  errorCount: number;
 }
 
 export interface CleanResult {
   ok: boolean;
+  stopped: boolean;
   freedBytes: number;
-  deletedCount: number;
-  errorCount: number;
-  dirs: DirCleanResult[];
+  zones: ZoneCleanResult[];
+}
+
+/** Un disque interne et sa place libre (system_get_disks). */
+export interface DiskSpace {
+  /** « C: » */
+  letter: string;
+  totalBytes: number;
+  freeBytes: number;
 }
 
 export interface SoftwareUpdate {

@@ -11,7 +11,8 @@ export default function MainLayout() {
       <div className="flex min-h-0 flex-1">
         <Navigation />
         <main className="flex-1 overflow-auto bg-page">
-          <div className="mx-auto flex max-w-6xl flex-col gap-8 p-12">
+          {/* Pas de largeur maximale : comme dans les maquettes, le contenu remplit la zone. */}
+          <div className="flex min-h-full flex-col gap-8 p-12">
             <UpdateBanner />
             <Outlet />
           </div>
