@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SettingsInfo } from '../types/commands';
-import { Moon, Rocket, Info, Sparkles, Globe, Clock, BarChart2, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowSquareOutIcon, ArrowsClockwiseIcon, ChartBarIcon, ClockIcon, GlobeIcon, InfoIcon, MoonIcon, RocketIcon, SparkleIcon } from '@phosphor-icons/react';
 
 function SectionDivider() {
   return <div className="border-t border-neutral-200" />;
@@ -88,7 +88,7 @@ export default function Settings() {
       {/* ══ Apparence ══════════════════════════════════════════════════════════ */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Moon className="h-5 w-5 text-neutral-600" />
+          <MoonIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
           <h2 className="text-lg font-semibold">Apparence</h2>
         </div>
         <ToggleRow
@@ -104,7 +104,7 @@ export default function Settings() {
       {/* ══ Démarrage ══════════════════════════════════════════════════════════ */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Rocket className="h-5 w-5 text-neutral-600" />
+          <RocketIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
           <h2 className="text-lg font-semibold">Démarrage</h2>
         </div>
         <ToggleRow
@@ -121,7 +121,7 @@ export default function Settings() {
       {/* ══ Mises à jour ═══════════════════════════════════════════════════════ */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <RefreshCw className="h-5 w-5 text-neutral-600" />
+          <ArrowsClockwiseIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
           <h2 className="text-lg font-semibold">Mises à jour</h2>
         </div>
         <div className="flex items-center justify-between gap-6 py-1">
@@ -151,7 +151,7 @@ export default function Settings() {
       {/* ══ À propos ═══════════════════════════════════════════════════════════ */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Info className="h-5 w-5 text-neutral-600" />
+          <InfoIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
           <h2 className="text-lg font-semibold">À propos</h2>
         </div>
         <div className="flex items-center justify-between py-1">
@@ -165,7 +165,7 @@ export default function Settings() {
       {/* ══ Fonctionnalités à venir ════════════════════════════════════════════ */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-neutral-600" />
+          <SparkleIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
           <h2 className="text-lg font-semibold">Bientôt disponible</h2>
         </div>
         <p className="text-sm text-neutral-500">
@@ -173,11 +173,11 @@ export default function Settings() {
         </p>
         <div className="bg-neutral-50 border border-neutral-200 rounded-lg divide-y divide-neutral-200">
           {[
-            { icon: Moon,         label: 'Thème sombre',             detail: 'Interface adaptée aux environnements sombres' },
-            { icon: Globe,        label: 'Langues supplémentaires',   detail: 'Anglais, espagnol et plus encore' },
-            { icon: Clock,        label: 'Nettoyage automatique',     detail: 'Planifiez un nettoyage régulier sans y penser' },
-            { icon: BarChart2,    label: 'Rapports d\'utilisation',   detail: 'Statistiques anonymes pour améliorer Kernshine (opt-in)' },
-            { icon: ExternalLink, label: 'Espace en ligne',           detail: 'Compte Kernshine, synchronisation et fonctionnalités premium' },
+            { icon: MoonIcon,         label: 'Thème sombre',             detail: 'Interface adaptée aux environnements sombres' },
+            { icon: GlobeIcon,        label: 'Langues supplémentaires',   detail: 'Anglais, espagnol et plus encore' },
+            { icon: ClockIcon,        label: 'Nettoyage automatique',     detail: 'Planifiez un nettoyage régulier sans y penser' },
+            { icon: ChartBarIcon,    label: 'Rapports d\'utilisation',   detail: 'Statistiques anonymes pour améliorer Kernshine (opt-in)' },
+            { icon: ArrowSquareOutIcon, label: 'Espace en ligne',           detail: 'Compte Kernshine, synchronisation et fonctionnalités premium' },
           ].map(({ icon: Icon, label, detail }) => (
             <div key={label} className="flex items-center gap-4 px-4 py-3">
               <Icon className="h-4 w-4 text-neutral-400 flex-shrink-0" />

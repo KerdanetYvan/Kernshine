@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { ShieldAlert, Trash2, ScanSearch, CheckSquare, Square, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { CheckCircleIcon, CheckSquareIcon, MagnifyingGlassIcon, ShieldWarningIcon, SquareIcon, TrashIcon, WarningIcon, XCircleIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TempDir, CleanResult, DirCleanResult, ScanResult } from '../types/commands';
 
@@ -119,7 +119,7 @@ export default function Cleaning() {
             onClick={scan}
             className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
           >
-            <ScanSearch className="h-4 w-4" />
+            <MagnifyingGlassIcon className="h-4 w-4" />
             {phase === 'done' ? 'Rescanner' : 'Scanner'}
           </button>
         ) : null}
@@ -153,8 +153,8 @@ export default function Cleaning() {
           <div className="flex items-center gap-3 pb-2 border-b border-neutral-200">
             <button onClick={toggleAll} className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
               {selected.size === dirs.length
-                ? <CheckSquare className="h-4 w-4 text-neutral-900" />
-                : <Square className="h-4 w-4" />}
+                ? <CheckSquareIcon className="h-4 w-4 text-neutral-900" />
+                : <SquareIcon className="h-4 w-4" />}
               Tout sélectionner
             </button>
             <span className="text-neutral-300">|</span>
@@ -177,8 +177,8 @@ export default function Cleaning() {
                 >
                   <button onClick={e => { e.stopPropagation(); toggle(dir.path); }} className="flex-shrink-0">
                     {isSelected
-                      ? <CheckSquare className="h-5 w-5 text-neutral-900" />
-                      : <Square className="h-5 w-5 text-neutral-400" />}
+                      ? <CheckSquareIcon className="h-5 w-5 text-neutral-900" />
+                      : <SquareIcon className="h-5 w-5 text-neutral-400" />}
                   </button>
 
                   <div className="flex-1 min-w-0">
@@ -186,13 +186,13 @@ export default function Cleaning() {
                       <span className="font-medium text-sm">{dir.label}</span>
                       {dir.requiresAdmin && (
                         <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5">
-                          <ShieldAlert className="h-3 w-3" />
+                          <ShieldWarningIcon className="h-3 w-3" />
                           Admin
                         </span>
                       )}
                       {dir.lockedByProcess && (
                         <span className="flex items-center gap-1 text-xs text-neutral-500 bg-neutral-100 border border-neutral-300 px-1.5 py-0.5">
-                          <AlertTriangle className="h-3 w-3" />
+                          <WarningIcon className="h-3 w-3" />
                           Fermez {dir.lockedByProcess} d'abord
                         </span>
                       )}
@@ -227,8 +227,8 @@ export default function Cleaning() {
               return (
                 <li key={dir.path} className="flex items-center gap-4 p-4 border border-neutral-200 bg-white">
                   <span className="flex-shrink-0">
-                    {(r?.status === 'ok' || r?.status === 'partial') && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                    {r?.status === 'denied'                          && <XCircle      className="h-5 w-5 text-red-500"   />}
+                    {(r?.status === 'ok' || r?.status === 'partial') && <CheckCircleIcon className="h-5 w-5 text-green-500" />}
+                    {r?.status === 'denied'                          && <XCircleIcon      className="h-5 w-5 text-red-500"   />}
                   </span>
 
                   <div className="flex-1 min-w-0">
@@ -253,7 +253,7 @@ export default function Cleaning() {
       {/* Scan vide */}
       {phase === 'results' && dirs.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-neutral-400 gap-2">
-          <Trash2 className="h-10 w-10" />
+          <TrashIcon weight="duotone" className="h-10 w-10" />
           <p>Aucun fichier temporaire détecté.</p>
         </div>
       )}
@@ -268,7 +268,7 @@ export default function Cleaning() {
                 {' '}à libérer · {selected.size} dossier{selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
                 {hasAdmin && (
                   <span className="ml-2 text-amber-600 inline-flex items-center gap-1">
-                    <ShieldAlert className="h-3.5 w-3.5" />
+                    <ShieldWarningIcon className="h-3.5 w-3.5" />
                     Élévation UAC requise
                   </span>
                 )}
@@ -290,7 +290,7 @@ export default function Cleaning() {
               disabled={selected.size === 0}
               className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Trash2 className="h-4 w-4" />
+              <TrashIcon className="h-4 w-4" />
               Nettoyer la sélection
             </button>
           </div>
@@ -324,7 +324,7 @@ export default function Cleaning() {
                 onClick={doClean}
                 className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
               >
-                <Trash2 className="h-4 w-4" />
+                <TrashIcon className="h-4 w-4" />
                 Nettoyer quand même
               </button>
             </div>

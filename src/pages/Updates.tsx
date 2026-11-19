@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { ScanSearch, Download, CheckSquare, Square, Package, Cpu, AlertCircle, CheckCircle2, XCircle, RefreshCw, Power, TriangleAlert, ChevronDown, ChevronRight, EyeOff } from 'lucide-react';
+import { ArrowsClockwiseIcon, CaretDownIcon, CaretRightIcon, CheckCircleIcon, CheckSquareIcon, CpuIcon, DownloadSimpleIcon, EyeSlashIcon, MagnifyingGlassIcon, PackageIcon, PowerIcon, SquareIcon, WarningCircleIcon, WarningIcon, XCircleIcon } from '@phosphor-icons/react';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { SoftwareUpdate, DriverUpdate, InstallResult, SoftwareScanResult, UpdatesListResult, SwProgress, Verification, FailureKind, StreamResult, ElevatedInstallResult, CloseAppResult } from '../types/commands';
 
@@ -214,7 +214,7 @@ export default function Updates() {
             onClick={scan}
             className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
           >
-            <ScanSearch className="h-4 w-4" />
+            <MagnifyingGlassIcon className="h-4 w-4" />
             {page === 'results' ? 'Rescanner' : 'Scanner'}
           </button>
         )}
@@ -236,7 +236,7 @@ export default function Updates() {
           {/* ── Logiciels ── */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-neutral-600" />
+              <PackageIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
               <h2 className="text-lg font-semibold">Logiciels</h2>
               {swList.length > 0 && (
                 <span className="text-xs bg-neutral-900 text-white px-2 py-0.5">
@@ -247,7 +247,7 @@ export default function Updates() {
 
             {swError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Analyse impossible — {swError}</span>
               </div>
             )}
@@ -268,8 +268,8 @@ export default function Updates() {
                       className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
                     >
                       {allKnownSelected
-                        ? <CheckSquare className="h-4 w-4 text-neutral-900" />
-                        : <Square className="h-4 w-4" />}
+                        ? <CheckSquareIcon className="h-4 w-4 text-neutral-900" />
+                        : <SquareIcon className="h-4 w-4" />}
                       Tout sélectionner
                     </button>
                   </div>
@@ -311,8 +311,8 @@ export default function Updates() {
                             className="flex-shrink-0"
                           >
                             {isSel
-                              ? <CheckSquare className="h-5 w-5 text-neutral-900" />
-                              : <Square className="h-5 w-5 text-neutral-400" />}
+                              ? <CheckSquareIcon className="h-5 w-5 text-neutral-900" />
+                              : <SquareIcon className="h-5 w-5 text-neutral-400" />}
                           </button>
                         ) : (
                           <span className="flex-shrink-0 flex items-center justify-center h-5 w-5">
@@ -322,9 +322,9 @@ export default function Updates() {
                             {status === 'installing' && (
                               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900" />
                             )}
-                            {status === 'ok' && item?.verification !== 'still_outdated' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                            {status === 'ok' && item?.verification === 'still_outdated' && <TriangleAlert className="h-5 w-5 text-amber-500" />}
-                            {status === 'error' && <XCircle      className="h-5 w-5 text-red-500"   />}
+                            {status === 'ok' && item?.verification !== 'still_outdated' && <CheckCircleIcon className="h-5 w-5 text-green-500" />}
+                            {status === 'ok' && item?.verification === 'still_outdated' && <WarningIcon className="h-5 w-5 text-amber-500" />}
+                            {status === 'error' && <XCircleIcon      className="h-5 w-5 text-red-500"   />}
                           </span>
                         )}
 
@@ -334,13 +334,13 @@ export default function Updates() {
                             <p className="font-medium text-sm">{pkg.name}</p>
                             {status === 'ok' && item?.reboot === 'app' && (
                               <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5">
-                                <RefreshCw className="h-3 w-3" />
+                                <ArrowsClockwiseIcon className="h-3 w-3" />
                                 Redémarrez le logiciel
                               </span>
                             )}
                             {status === 'ok' && item?.reboot === 'system' && (
                               <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5">
-                                <Power className="h-3 w-3" />
+                                <PowerIcon className="h-3 w-3" />
                                 Redémarrez votre PC
                               </span>
                             )}
@@ -362,7 +362,7 @@ export default function Updates() {
                                 onClick={(e) => { e.stopPropagation(); hideSw(pkg); }}
                                 className="flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-700 transition-colors mt-0.5"
                               >
-                                <EyeOff className="h-3 w-3" />
+                                <EyeSlashIcon className="h-3 w-3" />
                                 Ne plus proposer
                               </button>
                             )}
@@ -428,7 +428,7 @@ export default function Updates() {
                         disabled={selectedSw.size === 0}
                         className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        <Download className="h-4 w-4" />
+                        <DownloadSimpleIcon className="h-4 w-4" />
                         Mettre à jour la sélection
                       </button>
                     </>
@@ -477,7 +477,7 @@ export default function Updates() {
                 onClick={() => setShowHidden(v => !v)}
                 className="flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
               >
-                {showHidden ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                {showHidden ? <CaretDownIcon className="h-4 w-4" /> : <CaretRightIcon className="h-4 w-4" />}
                 Masqués ({hiddenList.length})
               </button>
               {showHidden && (
@@ -519,7 +519,7 @@ export default function Updates() {
 
           {hideError && (
             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <span>{hideError}</span>
             </div>
           )}
@@ -527,7 +527,7 @@ export default function Updates() {
           {/* ── Pilotes ── */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Cpu className="h-5 w-5 text-neutral-600" />
+              <CpuIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
               <h2 className="text-lg font-semibold">Pilotes</h2>
               {drList.length > 0 && (
                 <span className="text-xs bg-neutral-900 text-white px-2 py-0.5">
@@ -538,7 +538,7 @@ export default function Updates() {
 
             {drError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Analyse impossible — {drError}</span>
               </div>
             )}
@@ -555,7 +555,7 @@ export default function Updates() {
                       key={i}
                       className="flex items-center gap-4 p-4 border bg-white border-neutral-200"
                     >
-                      <Cpu className="h-5 w-5 text-neutral-400 flex-shrink-0" />
+                      <CpuIcon className="h-5 w-5 text-neutral-400 flex-shrink-0" />
                       <p className="flex-1 font-medium text-sm">{dr.title}</p>
                       <span className="text-sm text-neutral-500 flex-shrink-0">{formatMB(dr.sizeMB)}</span>
                     </li>
@@ -572,7 +572,7 @@ export default function Updates() {
                         onClick={installDrivers}
                         className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
                       >
-                        <Download className="h-4 w-4" />
+                        <DownloadSimpleIcon className="h-4 w-4" />
                         Installer tous les pilotes
                       </button>
                     </>

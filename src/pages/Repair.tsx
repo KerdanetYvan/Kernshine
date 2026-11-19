@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { ScanSearch, Wrench, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, ShieldCheck, Clock, Cpu, Database, Rocket, HardDrive } from 'lucide-react';
+import { CaretDownIcon, CaretUpIcon, CheckCircleIcon, ClockIcon, CpuIcon, DatabaseIcon, HardDriveIcon, MagnifyingGlassIcon, RocketIcon, ShieldCheckIcon, WarningCircleIcon, WrenchIcon, XCircleIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ServiceInfo, ServiceScanResult, RepairResult, SFCResult, DriverError, DriverErrorScanResult, RegistryIssue, RegistryScanResult, StartupItem, StartupScanResult, StartupChange, DiskDevice, DiskHealthResult, Ack } from '../types/commands';
 
@@ -20,21 +20,21 @@ function StatusBadge({ status }: { status: string }) {
   if (status === 'Running') {
     return (
       <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-        <CheckCircle className="h-3 w-3" /> Actif
+        <CheckCircleIcon className="h-3 w-3" /> Actif
       </span>
     );
   }
   if (status === 'Disabled') {
     return (
       <span className="flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-0.5">
-        <XCircle className="h-3 w-3" /> Désactivé
+        <XCircleIcon className="h-3 w-3" /> Désactivé
       </span>
     );
   }
   if (status === 'Stopped') {
     return (
       <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5">
-        <AlertCircle className="h-3 w-3" /> À l'arrêt
+        <WarningCircleIcon className="h-3 w-3" /> À l'arrêt
       </span>
     );
   }
@@ -277,7 +277,7 @@ export default function Repair() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-neutral-600" />
+            <WrenchIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
             <h2 className="text-lg font-semibold">Programmes essentiels</h2>
             {svcPhase === 'results' && issues.length > 0 && (
               <span className="text-xs bg-red-500 text-white px-2 py-0.5">
@@ -295,7 +295,7 @@ export default function Repair() {
               onClick={scanServices}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
             >
-              <ScanSearch className="h-4 w-4" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               {svcPhase === 'results' ? 'Rescanner' : 'Analyser'}
             </button>
           )}
@@ -317,7 +317,7 @@ export default function Repair() {
           <>
             {svcError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Impossible d'effectuer l'analyse. Réessayez.</span>
               </div>
             )}
@@ -335,8 +335,8 @@ export default function Repair() {
                   className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
                 >
                   {showAll
-                    ? <><ChevronUp className="h-4 w-4" /> Masquer les programmes actifs</>
-                    : <><ChevronDown className="h-4 w-4" /> Afficher les {healthy.length} programmes actifs</>}
+                    ? <><CaretUpIcon className="h-4 w-4" /> Masquer les programmes actifs</>
+                    : <><CaretDownIcon className="h-4 w-4" /> Afficher les {healthy.length} programmes actifs</>}
                 </button>
                 {showAll && (
                   <ul className="space-y-2">
@@ -355,7 +355,7 @@ export default function Repair() {
                   onClick={fixServices}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
                 >
-                  <Wrench className="h-4 w-4" />
+                  <WrenchIcon className="h-4 w-4" />
                   Corriger les problèmes
                 </button>
               </div>
@@ -389,7 +389,7 @@ export default function Repair() {
       {/* ══ Fichiers système ═══════════════════════════════════════════════════ */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-neutral-600" />
+          <ShieldCheckIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
           <h2 className="text-lg font-semibold">Fichiers système</h2>
         </div>
 
@@ -400,7 +400,7 @@ export default function Repair() {
         </p>
 
         <div className="flex items-center gap-2 text-xs text-neutral-600 bg-neutral-50 border border-neutral-300 px-3 py-2">
-          <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+          <ClockIcon className="h-3.5 w-3.5 flex-shrink-0" />
           La vérification prend <strong className="mx-1">10 à 15 minutes</strong>.
           Windows vous demandera l'autorisation — cliquez sur <strong className="ml-1">Oui</strong>.
         </div>
@@ -410,7 +410,7 @@ export default function Repair() {
             onClick={runSFC}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
           >
-            <ShieldCheck className="h-4 w-4" />
+            <ShieldCheckIcon className="h-4 w-4" />
             Vérifier les fichiers système
           </button>
         )}
@@ -430,7 +430,7 @@ export default function Repair() {
           return (
             <div className="space-y-2">
               <div className={`flex items-start gap-2 p-3 border text-sm ${meta.color}`}>
-                <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium">{meta.label}</p>
                   <p className="mt-0.5 opacity-80">{meta.detail}</p>
@@ -453,7 +453,7 @@ export default function Repair() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Cpu className="h-5 w-5 text-neutral-600" />
+            <CpuIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
             <h2 className="text-lg font-semibold">Composants et périphériques</h2>
             {drvPhase === 'results' && drivers.length > 0 && (
               <span className="text-xs bg-red-500 text-white px-2 py-0.5">
@@ -471,7 +471,7 @@ export default function Repair() {
               onClick={scanDrivers}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
             >
-              <ScanSearch className="h-4 w-4" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               {drvPhase === 'results' ? 'Rescanner' : 'Analyser'}
             </button>
           )}
@@ -493,7 +493,7 @@ export default function Repair() {
           <>
             {drvError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Impossible d'effectuer l'analyse. Réessayez.</span>
               </div>
             )}
@@ -511,7 +511,7 @@ export default function Repair() {
                     key={d.instanceId}
                     className="flex items-center gap-4 p-4 border bg-red-50/50 border-red-200"
                   >
-                    <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+                    <WarningCircleIcon className="h-5 w-5 text-red-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm">{d.name}</p>
                       <p className="text-xs text-neutral-400 mt-0.5">Problème détecté — ce composant ne fonctionne pas correctement</p>
@@ -530,7 +530,7 @@ export default function Repair() {
                   onClick={fixDrivers}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
                 >
-                  <Wrench className="h-4 w-4" />
+                  <WrenchIcon className="h-4 w-4" />
                   Relancer les composants
                 </button>
               </div>
@@ -565,7 +565,7 @@ export default function Repair() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-neutral-600" />
+            <DatabaseIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
             <h2 className="text-lg font-semibold">Programmes fantômes</h2>
             {regPhase === 'results' && regIssues.length > 0 && (
               <span className="text-xs bg-red-500 text-white px-2 py-0.5">
@@ -583,7 +583,7 @@ export default function Repair() {
               onClick={scanRegistry}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
             >
-              <ScanSearch className="h-4 w-4" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               {regPhase === 'results' ? 'Rescanner' : 'Analyser'}
             </button>
           )}
@@ -606,7 +606,7 @@ export default function Repair() {
           <>
             {regError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Impossible d'effectuer l'analyse. Réessayez.</span>
               </div>
             )}
@@ -621,7 +621,7 @@ export default function Repair() {
               <ul className="space-y-2">
                 {regIssues.map(r => (
                   <li key={r.registryPath} className="flex items-center gap-4 p-4 border bg-amber-50/50 border-amber-200">
-                    <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0" />
+                    <WarningCircleIcon className="h-5 w-5 text-amber-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm">{r.name}</p>
                       <p className="text-xs text-neutral-400 mt-0.5 truncate">
@@ -642,7 +642,7 @@ export default function Repair() {
                   onClick={fixRegistry}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
                 >
-                  <Wrench className="h-4 w-4" />
+                  <WrenchIcon className="h-4 w-4" />
                   Nettoyer les entrées obsolètes
                 </button>
               </div>
@@ -677,7 +677,7 @@ export default function Repair() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Rocket className="h-5 w-5 text-neutral-600" />
+            <RocketIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
             <h2 className="text-lg font-semibold">Programmes au démarrage</h2>
             {stpPhase === 'results' && stpChanges.length > 0 && (
               <span className="text-xs bg-neutral-900 text-white px-2 py-0.5">
@@ -690,7 +690,7 @@ export default function Repair() {
               onClick={scanStartup}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
             >
-              <ScanSearch className="h-4 w-4" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               {stpPhase === 'results' ? 'Rescanner' : 'Analyser'}
             </button>
           )}
@@ -712,7 +712,7 @@ export default function Repair() {
           <>
             {stpError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Impossible d'effectuer l'analyse. Réessayez.</span>
               </div>
             )}
@@ -778,7 +778,7 @@ export default function Repair() {
                   onClick={applyStartup}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
                 >
-                  <CheckCircle className="h-4 w-4" />
+                  <CheckCircleIcon className="h-4 w-4" />
                   Appliquer les modifications
                 </button>
               </div>
@@ -806,7 +806,7 @@ export default function Repair() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <HardDrive className="h-5 w-5 text-neutral-600" />
+            <HardDriveIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
             <h2 className="text-lg font-semibold">Disque dur</h2>
             {diskPhase === 'results' && !hasUnhealthyDisk && (
               <span className="text-xs bg-green-500 text-white px-2 py-0.5">En bonne santé</span>
@@ -820,7 +820,7 @@ export default function Repair() {
               onClick={scanDisk}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
             >
-              <ScanSearch className="h-4 w-4" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               {diskPhase === 'results' ? 'Rescanner' : 'Analyser'}
             </button>
           )}
@@ -842,7 +842,7 @@ export default function Repair() {
           <>
             {diskError && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>Impossible d'analyser le disque. Réessayez.</span>
               </div>
             )}
@@ -853,7 +853,7 @@ export default function Repair() {
                   <li key={i} className={`border overflow-hidden ${diskHeaderColor(disk.healthStatus)}`}>
                     {/* En-tête disque physique */}
                     <div className="flex items-center gap-3 px-4 py-3">
-                      <HardDrive className="h-4 w-4 flex-shrink-0" />
+                      <HardDriveIcon className="h-4 w-4 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{disk.name}</p>
                         <p className="text-xs opacity-70">{disk.sizeGB} Go</p>
@@ -895,7 +895,7 @@ export default function Repair() {
                   onClick={scheduleDisk}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors flex-shrink-0 ml-4"
                 >
-                  <HardDrive className="h-4 w-4" />
+                  <HardDriveIcon className="h-4 w-4" />
                   Programmer une vérification
                 </button>
               </div>

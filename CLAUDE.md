@@ -26,7 +26,7 @@ Le style actuel est provisoire : il sera remplacé par la charte (#31) puis par 
 | Bundler | Vite 7 |
 | Routing | React Router v7 (HashRouter) |
 | Style | Tailwind CSS 3.4 |
-| Icônes | Lucide React (remplacé par Phosphor, #32) |
+| Icônes | Phosphor (`@phosphor-icons/react`) |
 | Logs | tauri-plugin-log (dev uniquement) |
 
 ## Prérequis
@@ -165,6 +165,10 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 - **Espacements** : ceux du Figma tombent sur l'échelle de Tailwind : xs = `1` (4 px), sm = `2` (8 px), md = `3` (12 px), lg = `4` (16 px), xl = `6` (24 px), 2xl = `8` (32 px).
 - **Ombres** : les composants du Figma n'en ont pas (cartes : `bg-surface border rounded-xl p-6`).
 - Thème clair uniquement pour l'instant ; le sombre redéfinira les variables `--color-*`.
+- **Icônes** : Phosphor (`@phosphor-icons/react`, licence MIT), importées par leur nom avec le suffixe `Icon` (`import { BroomIcon } from '@phosphor-icons/react'`, les noms sans suffixe sont dépréciés). Deux graisses, d'après le brand board :
+  - `weight="duotone"` pour ce qui nomme une zone de l'app : menu, titres de cartes, cartes d'action, grandes illustrations ;
+  - graisse par défaut (regular) pour les états et les gestes : pastilles, bandeaux, boutons, listes, flèches. La couleur porte le sens (`text-status-*-fg`).
+  - Les icônes du Figma (page *Composants*) sont encore des tracés Lucide : prendre l'équivalent Phosphor de même sens.
 - Ne pas créer de classes CSS custom pour ce que Tailwind gère déjà.
 
 ### Rust
