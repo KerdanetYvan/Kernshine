@@ -1,740 +1,410 @@
-﻿import { useState } from 'react';
-import { CaretDownIcon, CaretUpIcon, CheckCircleIcon, ClockIcon, CpuIcon, DatabaseIcon, HardDriveIcon, MagnifyingGlassIcon, ShieldCheckIcon, WarningCircleIcon, WrenchIcon, XCircleIcon } from '@phosphor-icons/react';
+﻿import { useEffect, useRef, useState } from 'react';
+import { CheckCircleIcon, DevicesIcon, GearSixIcon, GhostIcon, HardDriveIcon, MagnifyingGlassIcon, ShieldCheckIcon, WarningIcon, type Icon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
-import type { ServiceInfo, ServiceScanResult, RepairResult, SFCResult, DriverError, DriverErrorScanResult, RegistryIssue, RegistryScanResult, DiskDevice, DiskHealthResult, Ack } from '../types/commands';
+import type { Ack, DiskHealthResult, DriverErrorScanResult, RegistryScanResult, RepairResult, ServiceScanResult, SFCResult } from '../types/commands';
+import { depuis, formatListe, pluriel } from '../lib/format';
+import Bouton from '../components/ui/Bouton';
+import BoutonScan from '../components/ui/BoutonScan';
+import Carte from '../components/ui/Carte';
 import EnTetePage from '../components/ui/EnTetePage';
+import Pastille, { type Statut } from '../components/ui/Pastille';
+import ProgressionCirculaire from '../components/ui/ProgressionCirculaire';
+import LigneReparation, { type ActionReparation } from '../components/reparation/LigneReparation';
 
-// ── Types locaux ──────────────────────────────────────────────────────────────
+type Phase = 'accueil' | 'analyse' | 'resultats';
+type ZoneId = 'services' | 'peripheriques' | 'fantomes' | 'disques';
 
-type SvcPhase = 'idle' | 'scanning' | 'results';
-type FixPhase = 'idle' | 'fixing' | 'done';
-type SFCPhase = 'idle' | 'running' | 'done';
-type DrvPhase = 'idle' | 'scanning' | 'results';
-
-// ── Sous-composants ───────────────────────────────────────────────────────────
-
-function SectionDivider() {
-  return <div className="border-t border-neutral-200" />;
+/** Résultat d'une zone, tel qu'affiché : état, explication, et ce qu'il faut pour réparer. */
+interface Constat {
+  etat: 'ok' | 'corriger' | 'erreur';
+  description: string;
+  /** Résumé pour la carte du haut (« un programme essentiel de Windows est arrêté »). */
+  resume?: string;
+  /** Ce que la réparation envoie au Rust (noms de services, identifiants, chemins, lettres). */
+  cibles: string[];
+  /** Vérification des disques prévue au prochain redémarrage. */
+  prevue?: boolean;
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'Running') {
-    return (
-      <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-        <CheckCircleIcon className="h-3 w-3" /> Actif
-      </span>
-    );
-  }
-  if (status === 'Disabled') {
-    return (
-      <span className="flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-0.5">
-        <XCircleIcon className="h-3 w-3" /> Désactivé
-      </span>
-    );
-  }
-  if (status === 'Stopped') {
-    return (
-      <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5">
-        <WarningCircleIcon className="h-3 w-3" /> À l'arrêt
-      </span>
-    );
-  }
-  return (
-    <span className="text-xs text-neutral-500 bg-neutral-100 border border-neutral-200 px-2 py-0.5">
-      Inconnu
-    </span>
-  );
+interface Zone {
+  id: ZoneId;
+  nom: string;
+  icone: Icon;
+  /** Ce que vérifie la zone, affiché pendant l'analyse. */
+  pendant: string;
+  analyser: () => Promise<Constat>;
 }
 
-function ServiceRow({ svc }: { svc: ServiceInfo }) {
-  return (
-    <li className={[
-      'flex items-center gap-4 p-4 border',
-      svc.hasIssue ? 'bg-red-50/50 border-red-200' : 'bg-white border-neutral-200',
-    ].join(' ')}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{svc.label}</span>
-          {svc.hasIssue && <span className="text-xs text-red-600 font-medium">— problème détecté</span>}
-        </div>
-        <p className="text-xs text-neutral-400 mt-0.5">{svc.description}</p>
-      </div>
-      <StatusBadge status={svc.status} />
-    </li>
-  );
-}
+const ERREUR_ANALYSE: Constat = { etat: 'erreur', description: "La vérification n'a pas pu se faire. Réessayez.", cibles: [] };
 
-// ── Page principale ───────────────────────────────────────────────────────────
+const ZONES: Zone[] = [
+  {
+    id: 'services',
+    nom: 'Programmes essentiels de Windows',
+    icone: GearSixIcon,
+    pendant: "Ceux qui font marcher l'impression, le son, le réseau et les mises à jour.",
+    analyser: async () => {
+      const res = await invoke<ServiceScanResult>('repair_get_services');
+      if (!res.ok) return ERREUR_ANALYSE;
+      const ko = res.data.filter((s) => s.hasIssue);
+      if (ko.length === 0) return { etat: 'ok', description: 'Ils fonctionnent tous normalement.', cibles: [] };
+      const noms = formatListe(ko.map((s) => s.label), 4);
+      return {
+        etat: 'corriger',
+        description: `${noms} ${ko.length > 1 ? 'ne fonctionnent pas' : 'ne fonctionne pas'} comme prévu.`,
+        resume: ko.length > 1 ? `${ko.length} programmes essentiels de Windows sont arrêtés` : 'un programme essentiel de Windows est arrêté',
+        cibles: ko.map((s) => s.name),
+      };
+    },
+  },
+  {
+    id: 'peripheriques',
+    nom: 'Composants et périphériques',
+    icone: DevicesIcon,
+    pendant: 'Carte graphique, son, ports USB et autres composants.',
+    analyser: async () => {
+      const res = await invoke<DriverErrorScanResult>('repair_get_driver_errors');
+      if (!res.ok) return ERREUR_ANALYSE;
+      if (res.data.length === 0) return { etat: 'ok', description: 'Tous vos composants fonctionnent normalement.', cibles: [] };
+      const n = res.data.length;
+      return {
+        etat: 'corriger',
+        description: `${formatListe(res.data.map((d) => d.name), 4)} ${n > 1 ? 'ne fonctionnent pas' : 'ne fonctionne pas'} correctement.`,
+        resume: n > 1 ? `${n} périphériques ne fonctionnent pas` : 'un périphérique ne fonctionne pas',
+        cibles: res.data.map((d) => d.instanceId),
+      };
+    },
+  },
+  {
+    id: 'fantomes',
+    nom: 'Programmes fantômes',
+    icone: GhostIcon,
+    pendant: 'Programmes déjà désinstallés que Windows affiche encore.',
+    analyser: async () => {
+      const res = await invoke<RegistryScanResult>('repair_get_registry_issues');
+      if (!res.ok) return ERREUR_ANALYSE;
+      if (res.data.length === 0) return { etat: 'ok', description: 'Programmes déjà désinstallés que Windows affiche encore. Aucun trouvé.', cibles: [] };
+      const n = res.data.length;
+      return {
+        etat: 'corriger',
+        description: `${n > 1 ? `${n} programmes déjà désinstallés apparaissent` : 'Un programme déjà désinstallé apparaît'} encore dans la liste de Windows : ${formatListe(res.data.map((r) => r.name), 4)}.`,
+        resume: n > 1 ? `${n} programmes fantômes encombrent la liste de Windows` : 'un programme fantôme encombre la liste de Windows',
+        cibles: res.data.map((r) => r.registryPath),
+      };
+    },
+  },
+  {
+    id: 'disques',
+    nom: 'Disques',
+    icone: HardDriveIcon,
+    pendant: "L'état de santé de vos disques.",
+    analyser: async () => {
+      const res = await invoke<DiskHealthResult>('repair_get_disk_health');
+      if (!res.ok) return ERREUR_ANALYSE;
+      const nomDisque = (d: (typeof res.disks)[number]) =>
+        d.volumes.length > 0 ? formatListe(d.volumes.map((v) => `Disque ${v.letter}:`)) : d.name;
+      const ko = res.disks.filter((d) => d.healthStatus !== 'Healthy');
+      if (ko.length === 0) {
+        const tous = res.disks.map(nomDisque);
+        return {
+          etat: 'ok',
+          description: tous.length > 0 ? `${formatListe(tous)} ${tous.length > 1 ? 'sont' : 'est'} en bon état.` : 'Vos disques sont en bon état.',
+          cibles: [],
+        };
+      }
+      return {
+        etat: 'corriger',
+        description: `${formatListe(ko.map(nomDisque))} ${ko.length > 1 ? 'signalent' : 'signale'} un problème. Windows peut le vérifier et le réparer au prochain redémarrage.`,
+        resume: ko.length > 1 ? 'des disques signalent un problème' : 'un disque signale un problème',
+        cibles: ko.flatMap((d) => d.volumes.map((v) => v.letter)),
+      };
+    },
+  },
+];
 
-const SFC_STATUS_LABELS: Record<SFCResult['status'], { label: string; detail: string; color: string }> = {
-  healthy:  { label: 'Votre système est en bonne santé',               detail: 'Tous les fichiers essentiels de Windows sont intacts.',                                                              color: 'text-neutral-900 bg-neutral-50 border-neutral-300'  },
-  repaired: { label: 'Des problèmes ont été corrigés',                  detail: "Windows a détecté et réparé des fichiers abîmés. Votre PC devrait fonctionner normalement.",                       color: 'text-neutral-900 bg-neutral-50 border-neutral-300'  },
-  failed:   { label: "Certains problèmes n'ont pas pu être réglés",    detail: "Windows a trouvé des fichiers abîmés mais n'a pas réussi à tous les réparer. Contactez le support si les problèmes persistent.", color: 'text-neutral-900 bg-neutral-100 border-neutral-500'  },
-  unknown:  { label: 'Vérification terminée',                           detail: "La vérification s'est terminée. Relancez une analyse si vous avez des doutes.",                                     color: 'text-neutral-600 bg-neutral-50 border-neutral-200'   },
+type Approfondie =
+  | { etat: 'jamais' }
+  | { etat: 'en_cours' }
+  | { etat: 'faite'; resultat: SFCResult['status'] | 'erreur' };
+
+/** Dernière analyse, gardée tant que Kernshine est ouvert. */
+const memoire: { constats: Partial<Record<ZoneId, Constat>> | null; quand: number; approfondie: Approfondie } = {
+  constats: null,
+  quand: 0,
+  approfondie: { etat: 'jamais' },
+};
+
+const APPROFONDIE: Record<SFCResult['status'] | 'erreur', { statut: Statut; libelle: string; description: string }> = {
+  healthy: { statut: 'ok', libelle: 'Tout va bien', description: 'Les fichiers indispensables à Windows sont intacts.' },
+  repaired: { statut: 'ok', libelle: 'Réparés', description: 'Des fichiers abîmés ont été trouvés et réparés. Votre PC devrait fonctionner normalement.' },
+  failed: { statut: 'corriger', libelle: 'À corriger', description: "Certains fichiers n'ont pas pu être réparés. Redémarrez votre PC, puis relancez la vérification." },
+  unknown: { statut: 'info', libelle: 'Terminée', description: "La vérification s'est terminée sans résultat clair. Relancez-la si les problèmes continuent." },
+  erreur: { statut: 'neutre', libelle: 'Non terminée', description: "La vérification n'a pas pu aller au bout. Réessayez, et acceptez la demande de Windows." },
 };
 
 export default function Repair() {
+  const [phase, setPhase] = useState<Phase>(memoire.constats ? 'resultats' : 'accueil');
+  const [constats, setConstats] = useState<Partial<Record<ZoneId, Constat>>>(memoire.constats ?? {});
+  const [enCours, setEnCours] = useState<ZoneId | null>(null);
+  const [reparations, setReparations] = useState<Partial<Record<ZoneId, string>>>({});
+  const [echecs, setEchecs] = useState<Partial<Record<ZoneId, string>>>({});
+  const [approfondie, setApprofondie] = useState<Approfondie>(memoire.approfondie);
 
-  // ── État : Programmes essentiels ──
-  const [svcPhase,  setSvcPhase]  = useState<SvcPhase>('idle');
-  const [services,  setServices]  = useState<ServiceInfo[]>([]);
-  const [svcError,  setSvcError]  = useState<string | null>(null);
-  const [showAll,   setShowAll]   = useState(false);
-  const [fixPhase,  setFixPhase]  = useState<FixPhase>('idle');
-  const [fixResult, setFixResult] = useState<RepairResult | null>(null);
+  const [, setTic] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTic((n) => n + 1), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
 
-  // ── État : Fichiers système ──
-  const [sfcPhase,  setSfcPhase]  = useState<SFCPhase>('idle');
-  const [sfcResult, setSfcResult] = useState<SFCResult | null>(null);
+  const analyseCourante = useRef(0);
 
-  // ── État : Composants et périphériques ──
-  const [drvPhase,    setDrvPhase]    = useState<DrvPhase>('idle');
-  const [drivers,     setDrivers]     = useState<DriverError[]>([]);
-  const [drvError,    setDrvError]    = useState<string | null>(null);
-  const [drvFixPhase, setDrvFixPhase] = useState<FixPhase>('idle');
-  const [drvResult,   setDrvResult]   = useState<RepairResult | null>(null);
-
-  // ── État : Registre ──
-  const [regPhase,    setRegPhase]    = useState<DrvPhase>('idle');
-  const [regIssues,   setRegIssues]   = useState<RegistryIssue[]>([]);
-  const [regError,    setRegError]    = useState<string | null>(null);
-  const [regFixPhase, setRegFixPhase] = useState<FixPhase>('idle');
-  const [regResult,   setRegResult]   = useState<RepairResult | null>(null);
-
-  // ── État : Disque ──
-  const [diskPhase,     setDiskPhase]     = useState<DrvPhase>('idle');
-  const [diskDevices,   setDiskDevices]   = useState<DiskDevice[]>([]);
-  const [diskError,     setDiskError]     = useState<string | null>(null);
-  const [diskScheduled, setDiskScheduled] = useState(false);
-  const [diskScheduling,setDiskScheduling]= useState(false);
-
-  // ── Actions ──
-
-  const scanServices = async () => {
-    setSvcPhase('scanning');
-    setSvcError(null);
-    setFixPhase('idle');
-    setFixResult(null);
-    setShowAll(false);
-    const res = await invoke<ServiceScanResult>('repair_get_services');
-    setServices(res.data);
-    setSvcError(res.ok ? null : (res.error ?? 'Erreur inconnue'));
-    setSvcPhase('results');
+  const enregistrer = (c: Partial<Record<ZoneId, Constat>>) => {
+    memoire.constats = c;
+    memoire.quand = Date.now();
+    setConstats(c);
   };
 
-  const fixServices = async () => {
-    const toFix = services.filter(s => s.hasIssue).map(s => s.name);
-    if (toFix.length === 0) return;
-    setFixPhase('fixing');
-    const result = await invoke<RepairResult>('repair_fix_services', { names: toFix });
-    setFixResult(result);
-    setFixPhase('done');
+  const analyser = async () => {
+    const numero = ++analyseCourante.current;
+    setPhase('analyse');
+    setEchecs({});
+    const trouves: Partial<Record<ZoneId, Constat>> = {};
+    setConstats({});
+    for (const z of ZONES) {
+      if (analyseCourante.current !== numero) return;
+      setEnCours(z.id);
+      try {
+        trouves[z.id] = await z.analyser();
+      } catch (e) {
+        console.warn('réparation', z.id, e);
+        trouves[z.id] = ERREUR_ANALYSE;
+      }
+      if (analyseCourante.current !== numero) return;
+      setConstats({ ...trouves });
+    }
+    enregistrer(trouves);
+    setEnCours(null);
+    setPhase('resultats');
   };
 
-  const runSFC = async () => {
-    setSfcPhase('running');
-    setSfcResult(null);
-    const result = await invoke<SFCResult>('repair_run_sfc');
-    setSfcResult(result);
-    setSfcPhase('done');
+  const annuler = () => {
+    analyseCourante.current++;
+    setEnCours(null);
+    setConstats(memoire.constats ?? {});
+    setPhase(memoire.constats ? 'resultats' : 'accueil');
   };
 
-  const scanDrivers = async () => {
-    setDrvPhase('scanning');
-    setDrvError(null);
-    setDrvFixPhase('idle');
-    setDrvResult(null);
-    const res: DriverErrorScanResult = await invoke<DriverErrorScanResult>('repair_get_driver_errors');
-    setDrivers(res.data);
-    setDrvError(res.ok ? null : (res.error ?? 'Erreur inconnue'));
-    setDrvPhase('results');
+  /** Relance l'analyse d'une seule zone (après une réparation, ou si elle n'a pas pu se faire). */
+  const reanalyser = async (id: ZoneId) => {
+    const zone = ZONES.find((z) => z.id === id)!;
+    let c: Constat;
+    try {
+      c = await zone.analyser();
+    } catch {
+      c = ERREUR_ANALYSE;
+    }
+    enregistrer({ ...(memoire.constats ?? {}), [id]: c });
   };
 
-  const fixDrivers = async () => {
-    const ids = drivers.map(d => d.instanceId);
-    if (ids.length === 0) return;
-    setDrvFixPhase('fixing');
-    const result = await invoke<RepairResult>('repair_fix_driver_errors', { ids });
-    setDrvResult(result);
-    setDrvFixPhase('done');
+  const reparer = async (id: ZoneId) => {
+    const cibles = constats[id]?.cibles ?? [];
+    if (cibles.length === 0) return;
+    setReparations((r) => ({ ...r, [id]: id === 'disques' ? 'Programmation…' : 'Réparation…' }));
+    setEchecs((e) => ({ ...e, [id]: undefined }));
+    let ok = false;
+    try {
+      if (id === 'services') ok = (await invoke<RepairResult>('repair_fix_services', { names: cibles })).ok;
+      if (id === 'peripheriques') ok = (await invoke<RepairResult>('repair_fix_driver_errors', { ids: cibles })).ok;
+      if (id === 'fantomes') ok = (await invoke<RepairResult>('repair_fix_registry_issues', { paths: cibles })).ok;
+      if (id === 'disques') ok = (await invoke<Ack>('repair_schedule_disk_check', { letters: cibles })).ok;
+    } catch (e) {
+      console.warn('réparation', id, e);
+    }
+    if (!ok) {
+      setEchecs((e) => ({ ...e, [id]: "La réparation n'a pas abouti. Réessayez, et cliquez sur « Oui » quand Windows vous le demande." }));
+    } else if (id === 'disques') {
+      // La vérification se fait au redémarrage : l'état du disque ne change pas tout de suite.
+      const c = memoire.constats?.disques;
+      if (c) enregistrer({ ...memoire.constats, disques: { ...c, prevue: true } });
+    } else {
+      await reanalyser(id);
+    }
+    setReparations((r) => ({ ...r, [id]: undefined }));
   };
 
-  const scanDisk = async () => {
-    setDiskPhase('scanning');
-    setDiskError(null);
-    setDiskScheduled(false);
-    const res = await invoke<DiskHealthResult>('repair_get_disk_health');
-    setDiskDevices(res.disks);
-    setDiskError(res.ok ? null : (res.error ?? 'Erreur inconnue'));
-    setDiskPhase('results');
+  const verifierFichiers = async () => {
+    const enCoursEtat: Approfondie = { etat: 'en_cours' };
+    memoire.approfondie = enCoursEtat;
+    setApprofondie(enCoursEtat);
+    let fin: Approfondie;
+    try {
+      const res = await invoke<SFCResult>('repair_run_sfc');
+      fin = { etat: 'faite', resultat: res.status };
+    } catch (e) {
+      console.warn('fichiers système', e);
+      fin = { etat: 'faite', resultat: 'erreur' };
+    }
+    memoire.approfondie = fin;
+    setApprofondie(fin);
   };
 
-  const scheduleDisk = async () => {
-    const letters = diskDevices
-      .filter(d => d.healthStatus !== 'Healthy')
-      .flatMap(d => d.volumes.map(v => v.letter));
-    const toSchedule = letters.length > 0 ? letters : ['C'];
-    setDiskScheduling(true);
-    const res = await invoke<Ack>('repair_schedule_disk_check', { letters: toSchedule });
-    setDiskScheduling(false);
-    setDiskScheduled(res.ok);
+  // ── Affichage ──
+
+  const aCorriger = ZONES.filter((z) => constats[z.id]?.etat === 'corriger');
+  const nonVerifiees = ZONES.filter((z) => constats[z.id]?.etat === 'erreur');
+  const enBonEtat = ZONES.filter((z) => constats[z.id]?.etat === 'ok');
+  const aRegler = aCorriger.filter((z) => !constats[z.id]?.prevue);
+
+  const ligne = (z: Zone) => {
+    const c = constats[z.id]!;
+    let statut: Statut = 'ok';
+    let libelle = 'Tout va bien';
+    let action: ActionReparation | undefined;
+    let description = echecs[z.id] ?? c.description;
+    if (c.etat === 'erreur') {
+      statut = 'neutre';
+      libelle = 'Non vérifié';
+      action = { libelle: 'Réessayer', variante: 'secondaire', onClick: () => reanalyser(z.id) };
+    } else if (c.prevue) {
+      statut = 'info';
+      libelle = 'Prévue';
+      description = 'La vérification se fera au prochain redémarrage du PC.';
+    } else if (c.etat === 'corriger') {
+      statut = 'corriger';
+      libelle = 'À corriger';
+      action = {
+        libelle: z.id === 'fantomes' ? 'Nettoyer la liste' : z.id === 'disques' ? 'Vérifier au redémarrage' : 'Réparer',
+        onClick: () => reparer(z.id),
+        enCours: reparations[z.id] ?? false,
+      };
+    }
+    return <LigneReparation key={z.id} icone={z.icone} nom={z.nom} description={description} statut={statut} libelleStatut={libelle} action={action} />;
   };
 
-  const diskStatusLabel = (s: string) =>
-    s === 'Healthy' ? 'En bonne santé' : s === 'Warning' ? 'À surveiller' : s === 'Unhealthy' ? 'Problème détecté' : s;
+  const sfc = approfondie.etat === 'faite' ? APPROFONDIE[approfondie.resultat] : null;
+  const ligneApprofondie = (
+    <LigneReparation
+      icone={ShieldCheckIcon}
+      nom="Fichiers système de Windows"
+      description={
+        approfondie.etat === 'en_cours'
+          ? "Vérification en cours. Comptez jusqu'à 15 minutes ; vous pouvez continuer à utiliser votre PC."
+          : sfc?.description ?? "Vérifie et répare les fichiers indispensables à Windows. Comptez jusqu'à 15 minutes."
+      }
+      statut={sfc?.statut ?? 'neutre'}
+      libelleStatut={approfondie.etat === 'en_cours' ? 'En cours' : sfc?.libelle ?? 'Jamais lancée'}
+      action={{
+        libelle: approfondie.etat === 'faite' ? 'Relancer la vérification' : 'Lancer la vérification',
+        variante: 'secondaire',
+        onClick: verifierFichiers,
+        enCours: approfondie.etat === 'en_cours' && 'Vérification…',
+      }}
+    />
+  );
 
-  const diskHeaderColor = (s: string) =>
-    s === 'Healthy'
-      ? 'border-green-200 bg-green-50/60'
-      : s === 'Warning'
-      ? 'border-amber-200 bg-amber-50/60'
-      : 'border-red-200 bg-red-50/60';
-
-  const hasUnhealthyDisk = diskDevices.some(d => d.healthStatus !== 'Healthy');
-
-  const scanRegistry = async () => {
-    setRegPhase('scanning');
-    setRegError(null);
-    setRegFixPhase('idle');
-    setRegResult(null);
-    const res: RegistryScanResult = await invoke<RegistryScanResult>('repair_get_registry_issues');
-    setRegIssues(res.data);
-    setRegError(res.ok ? null : (res.error ?? 'Erreur inconnue'));
-    setRegPhase('results');
-  };
-
-  const fixRegistry = async () => {
-    const paths = regIssues.map(r => r.registryPath);
-    if (paths.length === 0) return;
-    setRegFixPhase('fixing');
-    const result = await invoke<RepairResult>('repair_fix_registry_issues', { paths });
-    setRegResult(result);
-    setRegFixPhase('done');
-  };
-
-  const issues  = services.filter(s => s.hasIssue);
-  const healthy = services.filter(s => !s.hasIssue);
+  const zoneCourante = ZONES.find((z) => z.id === enCours);
+  const faites = ZONES.filter((z) => constats[z.id]).slice(-2);
+  const resumeFaite = (c: Constat, z: Zone) =>
+    c.etat === 'ok' ? (z.id === 'fantomes' ? 'aucun trouvé' : 'tout va bien') : c.etat === 'corriger' ? 'à corriger' : 'non vérifié';
 
   return (
-    <section className="space-y-8">
+    <section className="flex flex-col gap-8">
+      <EnTetePage
+        titre="Réparation"
+        sousTitre="Remettez Windows d'aplomb quand quelque chose ne va pas."
+        actions={
+          phase === 'resultats' && (
+            <>
+              <p className="whitespace-nowrap text-corps-petit text-secondary">Dernière vérification {depuis(memoire.quand)}</p>
+              <Bouton variante="secondaire" taille="compact" onClick={analyser}>Vérifier maintenant</Bouton>
+            </>
+          )
+        }
+      />
 
-      <EnTetePage titre="Réparation" sousTitre="Remettez Windows d'aplomb quand quelque chose ne va pas." />
+      {phase === 'accueil' && (
+        <div className="flex flex-col items-center gap-6 py-4 text-center">
+          <BoutonScan libelle="Lancer l'analyse" onClick={analyser} />
+          <p className="text-corps text-secondary">Cela prend environ une minute. Rien n'est réparé sans votre accord.</p>
+        </div>
+      )}
 
-      {/* ══ Programmes essentiels ══════════════════════════════════════════════ */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <WrenchIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-            <h2 className="text-lg font-semibold">Programmes essentiels</h2>
-            {svcPhase === 'results' && issues.length > 0 && (
-              <span className="text-xs bg-red-500 text-white px-2 py-0.5">
-                {issues.length} problème{issues.length > 1 ? 's' : ''}
-              </span>
-            )}
-            {svcPhase === 'results' && issues.length === 0 && (
-              <span className="text-xs bg-green-500 text-white px-2 py-0.5">
-                Tout est OK
-              </span>
-            )}
+      {phase === 'analyse' && (
+        <div className="flex flex-col items-center gap-4 py-4 text-center" aria-live="polite">
+          <ProgressionCirculaire libelle="Analyse en cours">
+            <MagnifyingGlassIcon className="size-12 text-action-primary-bg" />
+          </ProgressionCirculaire>
+          <div className="flex flex-col gap-1">
+            <p className="font-titre text-titre-3 text-primary">{zoneCourante ? `Vérification : ${zoneCourante.nom}…` : 'Analyse en cours…'}</p>
+            <p className="text-corps text-secondary">{zoneCourante?.pendant}</p>
           </div>
-          {svcPhase !== 'scanning' && (
-            <button
-              onClick={scanServices}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-            >
-              <MagnifyingGlassIcon className="h-4 w-4" />
-              {svcPhase === 'results' ? 'Rescanner' : 'Analyser'}
-            </button>
+          {faites.length > 0 && (
+            <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+              {faites.map((z) => (
+                <li key={z.id} className="flex items-center gap-1.5 text-corps-petit text-secondary">
+                  <CheckCircleIcon className="size-4 text-status-ok-fg" />
+                  {z.nom} · {resumeFaite(constats[z.id]!, z)}
+                </li>
+              ))}
+            </ul>
           )}
+          <Bouton variante="secondaire" taille="compact" onClick={annuler}>Annuler</Bouton>
         </div>
+      )}
 
-        <p className="text-sm text-neutral-500">
-          Windows s'appuie sur des programmes invisibles qui tournent en arrière-plan.
-          Cette analyse vérifie qu'ils fonctionnent tous correctement.
-        </p>
-
-        {svcPhase === 'scanning' && (
-          <div className="flex items-center gap-3 py-4">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-            <p className="text-sm text-neutral-500">Analyse en cours…</p>
-          </div>
-        )}
-
-        {svcPhase === 'results' && (
-          <>
-            {svcError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Impossible d'effectuer l'analyse. Réessayez.</span>
-              </div>
-            )}
-
-            {issues.length > 0 && (
-              <ul className="space-y-2">
-                {issues.map(svc => <ServiceRow key={svc.name} svc={svc} />)}
-              </ul>
-            )}
-
-            {healthy.length > 0 && (
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowAll(v => !v)}
-                  className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
-                >
-                  {showAll
-                    ? <><CaretUpIcon className="h-4 w-4" /> Masquer les programmes actifs</>
-                    : <><CaretDownIcon className="h-4 w-4" /> Afficher les {healthy.length} programmes actifs</>}
-                </button>
-                {showAll && (
-                  <ul className="space-y-2">
-                    {healthy.map(svc => <ServiceRow key={svc.name} svc={svc} />)}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {fixPhase === 'idle' && issues.length > 0 && (
-              <div className="flex items-center justify-between pt-1">
-                <p className="text-sm text-neutral-500">
-                  Windows va vous demander l'autorisation, cliquez sur <strong>Oui</strong>.
-                </p>
-                <button
-                  onClick={fixServices}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-                >
-                  <WrenchIcon className="h-4 w-4" />
-                  Corriger les problèmes
-                </button>
-              </div>
-            )}
-
-            {fixPhase === 'fixing' && (
-              <div className="flex items-center gap-3 pt-1">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-                <p className="text-sm text-neutral-600">
-                  Correction en cours… Windows va vous demander l'autorisation, cliquez sur Oui.
-                </p>
-              </div>
-            )}
-
-            {fixPhase === 'done' && fixResult && (
-              <div className={[
-                'p-3 border text-sm',
-                fixResult.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800',
-              ].join(' ')}>
-                {fixResult.ok
-                  ? `✓ ${fixResult.fixed} programme${fixResult.fixed > 1 ? 's relancés' : ' relancé'} — relancez l'analyse pour vérifier`
-                  : '⚠ Certains programmes n\'ont pas pu être relancés'}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <SectionDivider />
-
-      {/* ══ Fichiers système ═══════════════════════════════════════════════════ */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheckIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-          <h2 className="text-lg font-semibold">Fichiers système</h2>
-        </div>
-
-        <p className="text-sm text-neutral-500">
-          Windows va inspecter ses propres fichiers essentiels et réparer automatiquement
-          ceux qui seraient abîmés ou manquants. Recommandé si votre PC rencontre des
-          problèmes inexpliqués.
-        </p>
-
-        <div className="flex items-center gap-2 text-xs text-neutral-600 bg-neutral-50 border border-neutral-300 px-3 py-2">
-          <ClockIcon className="h-3.5 w-3.5 flex-shrink-0" />
-          La vérification prend <strong className="mx-1">10 à 15 minutes</strong>.
-          Windows vous demandera l'autorisation — cliquez sur <strong className="ml-1">Oui</strong>.
-        </div>
-
-        {sfcPhase === 'idle' && (
-          <button
-            onClick={runSFC}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-          >
-            <ShieldCheckIcon className="h-4 w-4" />
-            Vérifier les fichiers système
-          </button>
-        )}
-
-        {sfcPhase === 'running' && (
-          <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-neutral-700 font-medium">Vérification en cours…</p>
-              <p className="text-xs text-neutral-400">Ne fermez pas l'application. Cela peut prendre jusqu'à 15 minutes.</p>
+      {phase === 'resultats' && (
+        <>
+          <Carte className="flex items-center gap-6 px-8">
+            <div className={`grid size-[72px] shrink-0 place-items-center rounded-full ${aRegler.length > 0 ? 'bg-status-danger-bg' : 'bg-status-ok-bg'}`}>
+              {aRegler.length > 0 ? <WarningIcon className="size-10 text-status-danger-fg" /> : <CheckCircleIcon className="size-10 text-status-ok-fg" />}
             </div>
-          </div>
-        )}
-
-        {sfcPhase === 'done' && sfcResult && (() => {
-          const meta = SFC_STATUS_LABELS[sfcResult.status];
-          return (
-            <div className="space-y-2">
-              <div className={`flex items-start gap-2 p-3 border text-sm ${meta.color}`}>
-                <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium">{meta.label}</p>
-                  <p className="mt-0.5 opacity-80">{meta.detail}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => { setSfcPhase('idle'); setSfcResult(null); }}
-                className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
-              >
-                Relancer la vérification
-              </button>
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <h2 className="text-titre-1 text-primary">
+                {aRegler.length > 0 ? `${aRegler.length} ${pluriel(aRegler.length, 'réparation conseillée', 'réparations conseillées')}` : 'Windows fonctionne bien'}
+              </h2>
+              <p className="text-corps text-secondary">
+                {aRegler.length > 0
+                  ? `${formatListe(aRegler.map((z) => constats[z.id]!.resume!)).replace(/^./, (c) => c.toUpperCase())}. Rien n'est réparé sans votre accord.`
+                  : 'Aucune réparation nécessaire pour le moment.'}
+              </p>
             </div>
-          );
-        })()}
-      </div>
+            <div className="flex shrink-0 flex-col items-start gap-1.5">
+              <p className="text-legende text-secondary">Windows</p>
+              <Pastille statut={aRegler.length > 0 ? 'corriger' : 'ok'} />
+            </div>
+          </Carte>
 
-      <SectionDivider />
-
-      {/* ══ Composants et périphériques ════════════════════════════════════════ */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CpuIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-            <h2 className="text-lg font-semibold">Composants et périphériques</h2>
-            {drvPhase === 'results' && drivers.length > 0 && (
-              <span className="text-xs bg-red-500 text-white px-2 py-0.5">
-                {drivers.length} problème{drivers.length > 1 ? 's' : ''}
-              </span>
-            )}
-            {drvPhase === 'results' && drivers.length === 0 && (
-              <span className="text-xs bg-green-500 text-white px-2 py-0.5">
-                Tout est OK
-              </span>
-            )}
-          </div>
-          {drvPhase !== 'scanning' && (
-            <button
-              onClick={scanDrivers}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-            >
-              <MagnifyingGlassIcon className="h-4 w-4" />
-              {drvPhase === 'results' ? 'Rescanner' : 'Analyser'}
-            </button>
+          {aCorriger.length > 0 && (
+            <section className="flex flex-col gap-4">
+              <h2 className="text-titre-3 text-primary">À corriger</h2>
+              <ul className="flex flex-col gap-3">{aCorriger.map(ligne)}</ul>
+              <p className="text-corps-petit text-secondary">Windows va vous demander l'autorisation avant chaque réparation.</p>
+            </section>
           )}
-        </div>
 
-        <p className="text-sm text-neutral-500">
-          Vérifiez si la carte graphique, la carte son, les ports USB et les autres
-          composants de votre PC fonctionnent sans problème.
-        </p>
-
-        {drvPhase === 'scanning' && (
-          <div className="flex items-center gap-3 py-4">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-            <p className="text-sm text-neutral-500">Analyse des composants…</p>
-          </div>
-        )}
-
-        {drvPhase === 'results' && (
-          <>
-            {drvError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Impossible d'effectuer l'analyse. Réessayez.</span>
-              </div>
-            )}
-
-            {!drvError && drivers.length === 0 && (
-              <p className="text-sm text-neutral-400 py-2">
-                Tous vos composants fonctionnent correctement.
-              </p>
-            )}
-
-            {drivers.length > 0 && (
-              <ul className="space-y-2">
-                {drivers.map(d => (
-                  <li
-                    key={d.instanceId}
-                    className="flex items-center gap-4 p-4 border bg-red-50/50 border-red-200"
-                  >
-                    <WarningCircleIcon className="h-5 w-5 text-red-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{d.name}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">Problème détecté — ce composant ne fonctionne pas correctement</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {drvFixPhase === 'idle' && drivers.length > 0 && (
-              <div className="flex items-center justify-between pt-1">
-                <p className="text-sm text-neutral-500">
-                  Kernshine va tenter de relancer ces composants. Windows vous demandera l'autorisation.
-                </p>
-                <button
-                  onClick={fixDrivers}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-                >
-                  <WrenchIcon className="h-4 w-4" />
-                  Relancer les composants
-                </button>
-              </div>
-            )}
-
-            {drvFixPhase === 'fixing' && (
-              <div className="flex items-center gap-3 pt-1">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-                <p className="text-sm text-neutral-600">
-                  Relance en cours… Windows va vous demander l'autorisation, cliquez sur Oui.
-                </p>
-              </div>
-            )}
-
-            {drvFixPhase === 'done' && drvResult && (
-              <div className={[
-                'p-3 border text-sm',
-                drvResult.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800',
-              ].join(' ')}>
-                {drvResult.ok
-                  ? '✓ Les composants ont été relancés. Si le problème persiste, un redémarrage du PC peut aider.'
-                  : '⚠ Certains composants n\'ont pas pu être relancés. Un redémarrage du PC peut aider.'}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <SectionDivider />
-
-      {/* ══ Registre ═══════════════════════════════════════════════════════════ */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DatabaseIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-            <h2 className="text-lg font-semibold">Programmes fantômes</h2>
-            {regPhase === 'results' && regIssues.length > 0 && (
-              <span className="text-xs bg-red-500 text-white px-2 py-0.5">
-                {regIssues.length} entrée{regIssues.length > 1 ? 's' : ''}
-              </span>
-            )}
-            {regPhase === 'results' && regIssues.length === 0 && (
-              <span className="text-xs bg-green-500 text-white px-2 py-0.5">
-                Tout est OK
-              </span>
-            )}
-          </div>
-          {regPhase !== 'scanning' && (
-            <button
-              onClick={scanRegistry}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-            >
-              <MagnifyingGlassIcon className="h-4 w-4" />
-              {regPhase === 'results' ? 'Rescanner' : 'Analyser'}
-            </button>
+          {nonVerifiees.length > 0 && (
+            <section className="flex flex-col gap-4">
+              <h2 className="text-titre-3 text-primary">Non vérifié</h2>
+              <ul className="flex flex-col gap-3">{nonVerifiees.map(ligne)}</ul>
+            </section>
           )}
-        </div>
 
-        <p className="text-sm text-neutral-500">
-          Quand un programme est mal désinstallé, il peut laisser une trace dans Windows
-          et continuer à apparaître dans la liste des programmes installés alors qu'il n'existe
-          plus sur votre PC. Kernshine peut détecter et supprimer ces entrées obsolètes.
-        </p>
-
-        {regPhase === 'scanning' && (
-          <div className="flex items-center gap-3 py-4">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-            <p className="text-sm text-neutral-500">Analyse en cours…</p>
-          </div>
-        )}
-
-        {regPhase === 'results' && (
-          <>
-            {regError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Impossible d'effectuer l'analyse. Réessayez.</span>
-              </div>
-            )}
-
-            {!regError && regIssues.length === 0 && (
-              <p className="text-sm text-neutral-400 py-2">
-                Aucun programme fantôme détecté.
-              </p>
-            )}
-
-            {regIssues.length > 0 && (
-              <ul className="space-y-2">
-                {regIssues.map(r => (
-                  <li key={r.registryPath} className="flex items-center gap-4 p-4 border bg-amber-50/50 border-amber-200">
-                    <WarningCircleIcon className="h-5 w-5 text-amber-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{r.name}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5 truncate">
-                        Dossier introuvable : {r.installLocation}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {regFixPhase === 'idle' && regIssues.length > 0 && (
-              <div className="flex items-center justify-between pt-1">
-                <p className="text-sm text-neutral-500">
-                  {regIssues.length} entrée{regIssues.length > 1 ? 's' : ''} à supprimer — Windows vous demandera l'autorisation.
-                </p>
-                <button
-                  onClick={fixRegistry}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-                >
-                  <WrenchIcon className="h-4 w-4" />
-                  Nettoyer les entrées obsolètes
-                </button>
-              </div>
-            )}
-
-            {regFixPhase === 'fixing' && (
-              <div className="flex items-center gap-3 pt-1">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-                <p className="text-sm text-neutral-600">
-                  Nettoyage en cours… Windows va vous demander l'autorisation, cliquez sur Oui.
-                </p>
-              </div>
-            )}
-
-            {regFixPhase === 'done' && regResult && (
-              <div className={[
-                'p-3 border text-sm',
-                regResult.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800',
-              ].join(' ')}>
-                {regResult.ok
-                  ? `✓ ${regResult.fixed} entrée${regResult.fixed > 1 ? 's supprimées' : ' supprimée'} — votre liste de programmes est à jour`
-                  : '⚠ Certaines entrées n\'ont pas pu être supprimées'}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <SectionDivider />
-
-      {/* ══ Disque dur ═════════════════════════════════════════════════════════ */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <HardDriveIcon weight="duotone" className="h-5 w-5 text-neutral-600" />
-            <h2 className="text-lg font-semibold">Disque dur</h2>
-            {diskPhase === 'results' && !hasUnhealthyDisk && (
-              <span className="text-xs bg-green-500 text-white px-2 py-0.5">En bonne santé</span>
-            )}
-            {diskPhase === 'results' && hasUnhealthyDisk && (
-              <span className="text-xs bg-amber-500 text-white px-2 py-0.5">À vérifier</span>
-            )}
-          </div>
-          {diskPhase !== 'scanning' && !diskScheduling && (
-            <button
-              onClick={scanDisk}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-            >
-              <MagnifyingGlassIcon className="h-4 w-4" />
-              {diskPhase === 'results' ? 'Rescanner' : 'Analyser'}
-            </button>
+          {enBonEtat.length > 0 && (
+            <section className="flex flex-col gap-4">
+              <h2 className="text-titre-3 text-primary">Tout va bien</h2>
+              <ul className="flex flex-col gap-3">{enBonEtat.map(ligne)}</ul>
+            </section>
           )}
-        </div>
 
-        <p className="text-sm text-neutral-500">
-          Vérifiez l'état de santé de votre disque dur. Si des anomalies sont détectées,
-          Kernshine peut programmer une vérification approfondie au prochain démarrage.
-        </p>
-
-        {diskPhase === 'scanning' && (
-          <div className="flex items-center gap-3 py-4">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-            <p className="text-sm text-neutral-500">Analyse du disque…</p>
-          </div>
-        )}
-
-        {diskPhase === 'results' && (
-          <>
-            {diskError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-sm text-red-700">
-                <WarningCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Impossible d'analyser le disque. Réessayez.</span>
-              </div>
-            )}
-
-            {diskDevices.length > 0 && (
-              <ul className="space-y-3">
-                {diskDevices.map((disk, i) => (
-                  <li key={i} className={`border overflow-hidden ${diskHeaderColor(disk.healthStatus)}`}>
-                    {/* En-tête disque physique */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <HardDriveIcon className="h-4 w-4 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{disk.name}</p>
-                        <p className="text-xs opacity-70">{disk.sizeGB} Go</p>
-                      </div>
-                      <span className="text-xs font-medium flex-shrink-0">
-                        {diskStatusLabel(disk.healthStatus)}
-                      </span>
-                    </div>
-
-                    {/* Volumes (partitions) du disque */}
-                    {disk.volumes.length > 0 && (
-                      <ul className="border-t border-black/5 divide-y divide-black/5">
-                        {disk.volumes.map(v => (
-                          <li key={v.letter} className="flex items-center gap-3 px-4 py-2.5 bg-white/70">
-                            <span className="text-sm font-bold text-neutral-400 w-6 text-center flex-shrink-0">
-                              {v.letter}:
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">{v.label}</p>
-                              <p className="text-xs text-neutral-400">{v.freeGB} Go libres sur {v.sizeGB} Go</p>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {!diskScheduled && !diskScheduling && (
-              <div className="flex items-center justify-between pt-1">
-                <p className="text-sm text-neutral-500">
-                  {hasUnhealthyDisk
-                    ? 'Des anomalies ont été détectées. Une vérification approfondie est recommandée.'
-                    : 'Tout semble normal. Vous pouvez tout de même programmer une vérification.'}
-                </p>
-                <button
-                  onClick={scheduleDisk}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-800 transition-colors flex-shrink-0 ml-4"
-                >
-                  <HardDriveIcon className="h-4 w-4" />
-                  Programmer une vérification
-                </button>
-              </div>
-            )}
-
-            {diskScheduling && (
-              <div className="flex items-center gap-3 pt-1">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900 flex-shrink-0" />
-                <p className="text-sm text-neutral-600">Programmation en cours… cliquez sur Oui si Windows vous le demande.</p>
-              </div>
-            )}
-
-            {diskScheduled && (
-              <div className="p-3 border bg-green-50 border-green-200 text-green-800 text-sm">
-                ✓ Vérification programmée — elle démarrera automatiquement au prochain redémarrage de votre PC.
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
+          <section className="flex flex-col gap-4">
+            <h2 className="text-titre-3 text-primary">Vérification approfondie</h2>
+            <ul className="flex flex-col gap-3">{ligneApprofondie}</ul>
+            <p className="text-corps-petit text-secondary">
+              À lancer si Windows plante ou se comporte bizarrement. Vous pouvez continuer à utiliser votre PC pendant ce temps.
+            </p>
+          </section>
+        </>
+      )}
     </section>
   );
 }
