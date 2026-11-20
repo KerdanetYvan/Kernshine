@@ -1,6 +1,7 @@
 mod bigfiles;
 mod diagnose;
 mod drivers;
+mod health;
 mod hidden;
 mod prefs;
 mod proc;
@@ -94,6 +95,9 @@ pub fn run() {
             updates::updates_install_elevated,
             updates::updates_close_related_app,
             updates::updates_stop,
+            health::health_check,
+            health::health_gpu_temperature,
+            health::health_read_wear,
             uninstall::uninstall_get,
             uninstall::uninstall_sizes,
             uninstall::uninstall_run,
@@ -113,6 +117,7 @@ mod tests {
             ("bigfiles.rs", include_str!("bigfiles.rs")),
             ("diagnose.rs", include_str!("diagnose.rs")),
             ("drivers.rs", include_str!("drivers.rs")),
+            ("health.rs", include_str!("health.rs")),
             ("hidden.rs", include_str!("hidden.rs")),
             ("prefs.rs", include_str!("prefs.rs")),
             ("proc.rs", include_str!("proc.rs")),

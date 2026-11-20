@@ -15,7 +15,7 @@ const rubriques: Rubrique[] = [
   { vers: '/cleaning', libelle: 'Nettoyage', icone: TrashIcon },
   { vers: '/applications', libelle: 'Applications', icone: SquaresFourIcon },
   { vers: '/drivers', libelle: 'Pilotes', icone: CpuIcon },
-  { vers: '/health', libelle: 'Santé', icone: HeartbeatIcon, bientot: true },
+  { vers: '/health', libelle: 'Santé', icone: HeartbeatIcon },
   { vers: '/repair', libelle: 'Réparation', icone: WrenchIcon },
 ];
 
