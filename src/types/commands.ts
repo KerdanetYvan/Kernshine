@@ -405,3 +405,55 @@ export interface SelfUpdateResult {
   ok: boolean;
   error?: string;
 }
+
+// ── Santé (health.rs) ────────────────────────────────────────────────────────
+
+export interface DiskHealth {
+  /** « C: » */
+  letter: string;
+  /** Disque physique (plusieurs lettres peuvent le partager). */
+  diskNumber: number;
+  kind: 'ssd' | 'hdd' | null;
+  /** État donné par Windows. */
+  state: 'ok' | 'warning' | 'bad' | 'unknown';
+  totalBytes: number;
+  freeBytes: number;
+}
+
+export interface MemoryTest {
+  /** Date du dernier test de la mémoire de Windows (secondes depuis 1970). */
+  date: number;
+  errors: boolean;
+}
+
+export interface BatteryHealth {
+  designMwh: number;
+  fullMwh: number;
+  cycles: number | null;
+}
+
+export interface HealthReport {
+  disks: DiskHealth[];
+  /** `null` si le test de la mémoire de Windows n'a jamais été lancé. */
+  memoryTest: MemoryTest | null;
+  /** `null` sur un PC sans batterie. */
+  battery: BatteryHealth | null;
+}
+
+export interface GpuTemperature {
+  name: string;
+  celsius: number;
+}
+
+export interface DiskWear {
+  diskNumber: number;
+  /** `null` : le disque ne la communique pas. */
+  wear: number | null;
+  celsius: number | null;
+}
+
+export interface WearResult {
+  /** `false` si l'autorisation a été refusée. */
+  ok: boolean;
+  disks: DiskWear[];
+}

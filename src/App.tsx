@@ -8,6 +8,7 @@ const Cleaning  = lazy(() => import("./pages/Cleaning"));
 const Repair    = lazy(() => import("./pages/Repair"));
 const Applications = lazy(() => import("./pages/Applications"));
 const Drivers   = lazy(() => import("./pages/Drivers"));
+const Health    = lazy(() => import("./pages/Health"));
 const Settings  = lazy(() => import("./pages/Settings"));
 const NotFound  = lazy(() => import("./pages/NotFound"));
 
@@ -22,6 +23,7 @@ export default function App() {
           {/* Onglets Mises à jour et Démarrage (?onglet=demarrage) */}
           <Route path="applications" element={<Applications />} />
           <Route path="drivers"  element={<Drivers />} />
+          <Route path="health"   element={<Health />} />
           <Route path="repair"   element={<Repair />} />
           <Route path="settings" element={<Settings />} />
         </Route>
