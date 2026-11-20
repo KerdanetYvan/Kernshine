@@ -310,6 +310,28 @@ export interface Prefs {
   restoreBeforeDrivers: boolean;
   /** Taille à partir de laquelle un fichier est « gros », en Mo : 100, 500, 1024 ou 5120. */
   largeFileMinMb: number;
+  /** Étapes incluses dans l'entretien (Paramètres > Entretien), toutes cochées par défaut. */
+  maintenanceCleaning: boolean;
+  maintenanceBigfiles: boolean;
+  maintenanceApps: boolean;
+  maintenanceDrivers: boolean;
+}
+
+// ── Entretien (maintenance.rs) ───────────────────────────────────────────────
+
+export interface ScorePart {
+  id: 'space' | 'junk' | 'updates' | 'health';
+  points: number;
+  max: number;
+}
+
+/** Note sur 100 de la dernière analyse de l'entretien. */
+export interface MaintenanceScore {
+  value: number;
+  state: 'ok' | 'surveiller' | 'corriger';
+  parts: ScorePart[];
+  /** Secondes depuis 1970. */
+  date: number;
 }
 
 // ── Gros fichiers (bigfiles.rs) ──────────────────────────────────────────────

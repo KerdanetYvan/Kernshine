@@ -3,6 +3,7 @@ mod diagnose;
 mod drivers;
 mod health;
 mod hidden;
+mod maintenance;
 mod prefs;
 mod proc;
 mod ps;
@@ -65,6 +66,8 @@ pub fn run() {
             settings::settings_set_login_item,
             settings::settings_open_link,
             prefs::settings_get_prefs,
+            maintenance::maintenance_score,
+            maintenance::maintenance_last,
             prefs::settings_set_prefs,
             settings::shell_open_log,
             selfupdate::selfupdate_check,
@@ -119,6 +122,7 @@ mod tests {
             ("drivers.rs", include_str!("drivers.rs")),
             ("health.rs", include_str!("health.rs")),
             ("hidden.rs", include_str!("hidden.rs")),
+            ("maintenance.rs", include_str!("maintenance.rs")),
             ("prefs.rs", include_str!("prefs.rs")),
             ("proc.rs", include_str!("proc.rs")),
             ("ps.rs", include_str!("ps.rs")),

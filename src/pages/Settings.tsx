@@ -1,14 +1,23 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, FilesIcon, GithubLogoIcon, LightningIcon, ScalesIcon, WarningIcon } from '@phosphor-icons/react';
+import { ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, CpuIcon, FilesIcon, GithubLogoIcon, LightningIcon, ScalesIcon, SquaresFourIcon, TrashIcon, WarningIcon, type Icon } from '@phosphor-icons/react';
 import type { Ack, SettingsInfo } from '../types/commands';
 import { usePrefs } from '../hooks/usePrefs';
 import Bandeau from '../components/ui/Bandeau';
 import EnTetePage from '../components/ui/EnTetePage';
+import CaseACocher from '../components/ui/CaseACocher';
 import Interrupteur from '../components/ui/Interrupteur';
 import CarteTheme from '../components/parametres/CarteTheme';
 import LigneReglage from '../components/parametres/LigneReglage';
 import LigneVersion from '../components/parametres/LigneVersion';
+
+/** Étapes de l'entretien que l'utilisateur peut inclure ou non (Figma : « Section – Entretien »). */
+const ETAPES_ENTRETIEN: { cle: 'maintenanceCleaning' | 'maintenanceBigfiles' | 'maintenanceApps' | 'maintenanceDrivers'; icone: Icon; titre: string; description: string }[] = [
+  { cle: 'maintenanceCleaning', icone: TrashIcon, titre: 'Nettoyage', description: 'Fichiers temporaires, cache des navigateurs et corbeille.' },
+  { cle: 'maintenanceBigfiles', icone: FilesIcon, titre: 'Gros fichiers', description: 'Vous choisissez toujours vous-même ce qui est supprimé.' },
+  { cle: 'maintenanceApps', icone: SquaresFourIcon, titre: 'Applications', description: 'Mise à jour des programmes installés.' },
+  { cle: 'maintenanceDrivers', icone: CpuIcon, titre: 'Pilotes', description: 'Mise à jour des pilotes, un par un.' },
+];
 
 function Section({ titre, description, children }: { titre: string; description?: string; children: ReactNode }) {
   return (
@@ -23,8 +32,8 @@ function Section({ titre, description, children }: { titre: string; description?
 }
 
 /**
- * Paramètres (Figma : « Paramètres »). Entretien et Langue arriveront avec leurs fonctions
- * (#58) ; le thème sombre avec l'Accueil refait (#54).
+ * Paramètres (Figma : « Paramètres »). La langue arrivera avec sa fonction ; le thème
+ * sombre avec l'Accueil refait (#54).
  */
 export default function Settings() {
   const { prefs, pret, changer, erreur } = usePrefs();
@@ -83,6 +92,14 @@ export default function Settings() {
             disabled={!info || lancementEnCours}
           />
         </LigneReglage>
+      </Section>
+
+      <Section titre="Entretien" description="Cochez les étapes à inclure quand vous lancez l'entretien. Décochée, une étape est simplement ignorée.">
+        {ETAPES_ENTRETIEN.map((e) => (
+          <LigneReglage key={e.cle} icone={e.icone} titre={e.titre} description={e.description}>
+            <CaseACocher etat={prefs[e.cle]} onChange={(c) => changer({ [e.cle]: c })} libelle={`Inclure : ${e.titre}`} />
+          </LigneReglage>
+        ))}
       </Section>
 
       <Section titre="Sécurité" description="Un filet de sécurité avant les changements importants.">
