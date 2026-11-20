@@ -85,6 +85,7 @@ src-tauri/
     system.rs          # Infos système + échantillonneur CPU/RAM en arrière-plan
     scan.rs            # Nettoyage : zones connues (dossiers, Corbeille, miniatures, Windows.old), analyse et vidage
     bigfiles.rs        # Gros fichiers : recherche (fichiers personnels seulement), suppression définitive
+    health.rs          # Santé : disques, batterie, températures des cartes graphiques, usure des disques (avec autorisation), test de la mémoire
     uninstall.rs       # Désinstallation : programmes installés (sans les composants), tailles mesurées, outil de chaque programme
     repair.rs          # Services, fichiers système, périphériques, registre, démarrage, disques
     updates.rs         # Logiciels (winget), applications ouvertes, rapports d'échec
@@ -110,8 +111,9 @@ src/
   components/nettoyage/ # Morceaux de la page Nettoyage (groupes, bilan)
   components/applications/ # Onglets Mises à jour, Désinstallation et Démarrage de la page Applications
   components/grosfichiers/ # Onglet Gros fichiers de la page Nettoyage
+  components/sante/    # Cartes de la page Santé et leur évaluation (seuils, conseils)
   lib/format.ts        # Tailles (« 6,1 Go »), listes (« a, b et c »), état d'un disque
-  pages/               # Dashboard, Cleaning, Applications, Drivers, Repair, Settings, NotFound
+  pages/               # Dashboard, Cleaning, Applications, Drivers, Health, Repair, Settings, NotFound
 ```
 
 ### Routing
@@ -126,11 +128,12 @@ Routes actuelles :
 - `/cleaning` → Nettoyage
 - `/applications` → Applications, onglet Mises à jour ; `?onglet=desinstallation` → onglet Désinstallation ; `?onglet=demarrage` → onglet Démarrage
 - `/drivers` → Pilotes
+- `/health` → Santé
 - `/repair` → Réparation
 - `/settings` → Paramètres
 - `/updates` → redirige vers `/applications`
 
-Santé (`/health`, #57) est déjà dans `Navigation.tsx` avec `bientot: true` : il reste masqué tant que sa page n'existe pas. Retirer `bientot` en ajoutant la route.
+Une rubrique de `Navigation.tsx` marquée `bientot: true` reste masquée tant que sa page n'existe pas.
 
 Toutes les pages sont chargées en **lazy** via `React.lazy()` + `<Suspense>`.
 
@@ -219,6 +222,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`). Désinstallation (#56) : voir ci-dessous |
 | Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
 | Repair | Refaite (#52) | Une analyse au clic (programmes essentiels, périphériques, programmes fantômes, disques), résultats gardés en mémoire et triés en À corriger / Tout va bien ; chaque réparation relance l'analyse de sa zone. Fichiers système en « vérification approfondie », à la demande. Écrans validés dans le Figma (pas de maquette d'origine) |
+| Health | Nouvelle (#57) | Vérification au clic puis résultats gardés en mémoire ; disques (état donné par Windows, place, type, usure sur demande), batterie (portables), température des cartes graphiques en direct, mémoire (dernière minute, dernier test de Windows). Voir ci-dessous |
 | Settings | Refaite (#53) | Démarrage (lancer avec Windows), Sécurité (point de restauration avant les pilotes), Mises à jour (automatiques, désactivées par défaut ; version et « Installer »), À propos. Thème sombre grisé jusqu'à l'Accueil refait (#54) ; Entretien et Gros fichiers arriveront avec #58 et #55 ; Langue masquée (français seulement) |
 
 ## Points d'attention
@@ -244,5 +248,10 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
   - Jamais proposés : composants dont dépendent Windows et les programmes (`COMPONENT_WORDS` : bibliothèques Visual C++, runtimes, pilotes, Edge…, comptés dans une note), mises à jour, entrées cachées, Kernshine, et les outils qui ne sont ni `MsiExec /X{GUID}` ni un `.exe` désigné par son chemin complet (winget, scripts, adresses).
   - Taille : celle annoncée par le programme ; sinon `uninstall_sizes` mesure son dossier en arrière-plan, sans compter les dossiers d'autres programmes rangés dedans (jeux d'une bibliothèque Steam). La mesure peut prendre plus d'une minute avec de gros jeux : l'ordre de la liste ne change qu'à la fin.
   - Chaque programme est retiré avec son propre outil, lancé normalement (sa fenêtre s'ouvre, Windows demande l'autorisation si besoin). Kernshine attend la fin de tous les processus qu'il a lancés (beaucoup se recopient puis se relancent), puis regarde si l'entrée a disparu : sinon « pas désinstallé ». Tests sur la vraie machine avec une fausse entrée de l'utilisateur (`whoami.exe`, `reg.exe`), jamais avec un vrai programme. Liste et tailles réelles : `cargo test --release real_sizes -- --ignored --nocapture`.
+- **Santé** (`health.rs`) : tout se lit sans autorisation, sauf l'usure des disques.
+  - Usure (`health_read_wear`) : une seule autorisation pour tous les disques. 0 % n'est fiable que pour un SSD NVMe (un disque dur ou un SSD SATA renvoie 0 % sans compter) : sinon « non communiquée ». Test réel à la main : `cargo test real_wear -- --ignored --nocapture`.
+  - Batterie : rapport de Windows (`powercfg /batteryreport /xml`), section `<Batteries>` seulement ; absente sur un PC fixe.
+  - Température des cartes graphiques : celle que le pilote donne à Windows (comme le Gestionnaire des tâches, toutes marques), `nvidia-smi` en secours. Celle du processeur n'est pas lisible sans pilote système : idée suivie dans l'issue #67 (colonne « Idées » du board).
+  - Pas de « surveillé en continu » : seules la température et la mémoire sont relues, tant que la page est ouverte. La courbe de la mémoire couvre la dernière minute (historique de `system.rs`).
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.
