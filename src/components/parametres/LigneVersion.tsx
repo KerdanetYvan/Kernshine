@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { InfoIcon } from '@phosphor-icons/react';
+import { ArrowsClockwiseIcon, InfoIcon } from '@phosphor-icons/react';
 import type { SelfUpdateCheck, SelfUpdateEvent, SelfUpdateResult } from '../../types/commands';
 import Bouton from '../ui/Bouton';
 import Pastille from '../ui/Pastille';
@@ -66,9 +66,20 @@ export default function LigneVersion({ version }: { version: string }) {
     <div className="flex flex-col gap-3">
       <LigneReglage icone={InfoIcon} titre="Version de Kernshine" description="Logiciel libre et gratuit.">
         <span className="whitespace-nowrap text-libelle text-primary">{version}</span>
-        {etat.kind === 'verification' && <Pastille statut="neutre">Vérification…</Pastille>}
         {etat.kind === 'aJour' && <Pastille statut="ok">À jour</Pastille>}
-        {etat.kind === 'erreur' && <Bouton variante="secondaire" taille="compact" onClick={verifier}>Réessayer</Bouton>}
+        {(etat.kind === 'verification' || etat.kind === 'aJour' || etat.kind === 'erreur' || etat.kind === 'disponible') && (
+          <Bouton
+            variante="secondaire"
+            taille="compact"
+            onClick={verifier}
+            disabled={etat.kind === 'verification'}
+            title="Rechercher une nouvelle version de Kernshine"
+            className="inline-flex items-center gap-2"
+          >
+            <ArrowsClockwiseIcon className={`size-4 ${etat.kind === 'verification' ? 'animate-spin' : ''}`} aria-hidden />
+            {etat.kind === 'verification' ? 'Vérification…' : etat.kind === 'erreur' ? 'Réessayer' : 'Vérifier'}
+          </Bouton>
+        )}
         {check && <Pastille statut="info">Nouvelle version {check.version}</Pastille>}
         {etat.kind === 'disponible' && <Bouton taille="compact" onClick={() => installer(etat.check)}>Installer</Bouton>}
         {etat.kind === 'telechargement' && (
