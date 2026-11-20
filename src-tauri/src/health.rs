@@ -3,8 +3,8 @@
 //! Tout se lit sans droits administrateur, sauf l'usure des disques (lue à la demande).
 //! Une valeur que Windows ne donne pas reste absente : l'interface ne l'invente pas.
 
-use crate::ps;
 use crate::updates::blocking;
+use crate::{proc, ps};
 use serde::Serialize;
 use serde_json::Value;
 use std::time::Duration;
@@ -40,6 +40,18 @@ pub struct HealthReport {
     disks: Vec<DiskHealth>,
     /// Absent si le test de la mémoire de Windows n'a jamais été lancé.
     memory_test: Option<MemoryTest>,
+    /// Absent sur un PC sans batterie.
+    battery: Option<Battery>,
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Battery {
+    /// Capacité d'origine et capacité actuelle, en mWh.
+    design_mwh: u64,
+    full_mwh: u64,
+    /// Cycles de charge, si la batterie les compte.
+    cycles: Option<u64>,
 }
 
 fn text(v: &Value, key: &str) -> String {
@@ -130,12 +142,57 @@ fn parse_memory_test(output: &str) -> Option<MemoryTest> {
     })
 }
 
+// ─── Batterie ───────────────────────────────────────────────────────────────
+
+/// Valeur de la première balise `<tag>…</tag>` du texte.
+fn tag<'a>(xml: &'a str, tag: &str) -> Option<&'a str> {
+    let open = format!("<{tag}>");
+    let start = xml.find(&open)? + open.len();
+    let end = xml[start..].find(&format!("</{tag}>"))? + start;
+    Some(xml[start..end].trim())
+}
+
+/// Première batterie du rapport de Windows (`powercfg /batteryreport /xml`). Seule la
+/// section `<Batteries>` est lue : la suite du rapport a d'autres balises du même nom.
+fn parse_battery(xml: &str) -> Option<Battery> {
+    let section = tag(xml, "Batteries")?;
+    let battery = tag(section, "Battery")?;
+    let value = |t: &str| tag(battery, t).and_then(|v| v.parse::<u64>().ok());
+    let design_mwh = value("DesignCapacity").filter(|v| *v > 0)?;
+    let full_mwh = value("FullChargeCapacity").filter(|v| *v > 0)?;
+    Some(Battery {
+        design_mwh,
+        full_mwh,
+        cycles: value("CycleCount").filter(|v| *v > 0),
+    })
+}
+
+fn read_battery() -> Option<Battery> {
+    let file = std::env::temp_dir().join(format!("kernshine_batterie_{}.xml", std::process::id()));
+    let mut cmd = proc::hidden("powercfg");
+    cmd.arg("/batteryreport")
+        .arg("/xml")
+        .arg("/output")
+        .arg(&file);
+    let ok = matches!(proc::status_with_timeout(cmd, TIMEOUT), Ok(Some(s)) if s.success());
+    let xml = std::fs::read_to_string(&file).unwrap_or_default();
+    let _ = std::fs::remove_file(&file);
+    if !ok {
+        return None;
+    }
+    parse_battery(&xml)
+}
+
 fn check() -> Result<HealthReport, String> {
     let disks = parse_disks(&ps::json_rows(&ps::run(DISKS_SCRIPT, TIMEOUT)?)?);
     let memory_test = ps::run(MEMORY_SCRIPT, TIMEOUT)
         .ok()
         .and_then(|o| parse_memory_test(&o));
-    Ok(HealthReport { disks, memory_test })
+    Ok(HealthReport {
+        disks,
+        memory_test,
+        battery: read_battery(),
+    })
 }
 
 #[tauri::command]
@@ -194,6 +251,27 @@ mod tests {
         );
         assert_eq!(parse_memory_test(r#"{"Id":1101,"Date":1700000000}"#), None);
         assert_eq!(parse_memory_test(""), None);
+    }
+
+    #[test]
+    fn battery_is_read_from_its_own_section_only() {
+        let laptop = "<BatteryReport><Batteries><Battery><Id>X</Id><DesignCapacity>47520</DesignCapacity>\
+            <FullChargeCapacity>40210</FullChargeCapacity><CycleCount>412</CycleCount></Battery></Batteries>\
+            <RuntimeEstimates><DesignCapacity><Capacity>1</Capacity></DesignCapacity></RuntimeEstimates></BatteryReport>";
+        assert_eq!(
+            parse_battery(laptop),
+            Some(Battery {
+                design_mwh: 47520,
+                full_mwh: 40210,
+                cycles: Some(412)
+            })
+        );
+        let desktop = "<Batteries>\n  </Batteries><RuntimeEstimates><DesignCapacity><Capacity>0</Capacity>\
+            </DesignCapacity></RuntimeEstimates>";
+        assert_eq!(parse_battery(desktop), None);
+        let no_cycles =
+            laptop.replace("<CycleCount>412</CycleCount>", "<CycleCount>0</CycleCount>");
+        assert_eq!(parse_battery(&no_cycles).unwrap().cycles, None);
     }
 
     /// Sur la vraie machine : au moins un disque interne, avec une taille.
