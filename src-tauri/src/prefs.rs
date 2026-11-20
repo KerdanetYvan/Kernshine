@@ -18,6 +18,11 @@ pub struct Prefs {
     pub restore_before_drivers: bool,
     /// Taille à partir de laquelle un fichier est « gros », en Mo (100, 500, 1024 ou 5120).
     pub large_file_min_mb: u32,
+    /// Étapes incluses dans l'entretien (Paramètres > Entretien) : décochée, une étape est ignorée.
+    pub maintenance_cleaning: bool,
+    pub maintenance_bigfiles: bool,
+    pub maintenance_apps: bool,
+    pub maintenance_drivers: bool,
 }
 
 impl Default for Prefs {
@@ -26,6 +31,10 @@ impl Default for Prefs {
             auto_update: false,
             restore_before_drivers: true,
             large_file_min_mb: 500,
+            maintenance_cleaning: true,
+            maintenance_bigfiles: true,
+            maintenance_apps: true,
+            maintenance_drivers: true,
         }
     }
 }
@@ -102,6 +111,8 @@ mod tests {
             auto_update: true,
             restore_before_drivers: false,
             large_file_min_mb: 1024,
+            maintenance_drivers: false,
+            ..Prefs::default()
         };
         write(&dir, &p).unwrap();
         assert_eq!(read(&dir), p);
