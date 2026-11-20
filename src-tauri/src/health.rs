@@ -448,7 +448,10 @@ fn parse_wear(output: &str) -> Vec<DiskWear> {
         .filter(|r| r.get("Disk").and_then(Value::as_u64).is_some())
         .map(|r| DiskWear {
             disk_number: number(r, "Disk") as u32,
-            wear: opt(r, "Wear", 100),
+            // 0 % ne veut rien dire pour un disque dur ou un SSD SATA (Windows ne remplit
+            // vraiment l'usure que pour les SSD NVMe) : seul un NVMe peut annoncer 0 %.
+            wear: opt(r, "Wear", 100)
+                .filter(|w| *w > 0 || text(r, "Bus").eq_ignore_ascii_case("nvme")),
             celsius: opt(r, "Temp", 130).filter(|c| *c > 0),
         })
         .collect()
@@ -458,26 +461,27 @@ fn parse_wear(output: &str) -> Vec<DiskWear> {
 /// l'autorisation de l'utilisateur, demandée une seule fois pour tous les disques.
 #[tauri::command]
 pub async fn health_read_wear() -> Result<WearResult, String> {
-    blocking(|| {
-        let (ok, output) = ps::run_elevated_with_result(WEAR_TIMEOUT, |result| {
-            format!(
-                r"$r = foreach ($d in @(Get-PhysicalDisk)) {{
+    blocking(read_wear).await
+}
+
+fn read_wear() -> WearResult {
+    let (ok, output) = ps::run_elevated_with_result(WEAR_TIMEOUT, |result| {
+        format!(
+            r"$r = foreach ($d in @(Get-PhysicalDisk)) {{
   $c = $d | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
-  [pscustomobject]@{{ Disk = [int]$d.DeviceId; Wear = $c.Wear; Temp = $c.Temperature }}
+  [pscustomobject]@{{ Disk = [int]$d.DeviceId; Bus = [string]$d.BusType; Wear = $c.Wear; Temp = $c.Temperature }}
 }}
 ConvertTo-Json -InputObject @($r) -Compress | Out-File -LiteralPath {result} -Encoding UTF8 -Force"
-            )
-        });
-        let disks = parse_wear(&output);
-        if !ok || disks.is_empty() {
-            log::warn!("usure des disques : autorisation refusée ou lecture vide");
-        }
-        WearResult {
-            ok: ok && !disks.is_empty(),
-            disks,
-        }
-    })
-    .await
+        )
+    });
+    let disks = parse_wear(&output);
+    if !ok || disks.is_empty() {
+        log::warn!("usure des disques : autorisation refusée ou lecture vide");
+    }
+    WearResult {
+        ok: ok && !disks.is_empty(),
+        disks,
+    }
 }
 
 #[cfg(test)]
@@ -594,7 +598,7 @@ mod tests {
 
     #[test]
     fn wear_keeps_only_plausible_values() {
-        let out = r#"[{"Disk":0,"Wear":18,"Temp":34},{"Disk":1,"Wear":null,"Temp":0},{"Disk":2,"Wear":250,"Temp":500},{"Wear":5}]"#;
+        let out = r#"[{"Disk":0,"Bus":"SATA","Wear":18,"Temp":34},{"Disk":1,"Bus":"SATA","Wear":0,"Temp":0},{"Disk":2,"Wear":250,"Temp":500},{"Wear":5},{"Disk":3,"Bus":"NVMe","Wear":0,"Temp":40}]"#;
         assert_eq!(
             parse_wear(out),
             [
@@ -613,9 +617,23 @@ mod tests {
                     wear: None,
                     celsius: None
                 },
+                DiskWear {
+                    disk_number: 3,
+                    wear: Some(0),
+                    celsius: Some(40)
+                },
             ]
         );
         assert!(parse_wear("").is_empty());
+    }
+
+    /// Usure réelle des disques : Windows demande l'autorisation, donc lancé à la main.
+    /// `cargo test real_wear -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn real_wear() {
+        let r = read_wear();
+        eprintln!("autorisation acceptée : {} ; disques : {:?}", r.ok, r.disks);
     }
 
     /// Sur la vraie machine : au moins un disque interne, avec une taille.
