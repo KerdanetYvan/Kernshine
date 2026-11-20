@@ -416,6 +416,70 @@ pub async fn health_gpu_temperature() -> Result<Vec<GpuTemperature>, String> {
     blocking(gpu_temperatures).await
 }
 
+// ─── Usure des disques (avec autorisation) ──────────────────────────────────
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskWear {
+    /// Numéro du disque physique (celui de `DiskHealth`).
+    disk_number: u32,
+    /// Usure en %, telle que le disque la donne.
+    wear: Option<u32>,
+    /// Température du disque, s'il la donne.
+    celsius: Option<u32>,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WearResult {
+    /// `false` si l'autorisation a été refusée ou si la lecture a échoué.
+    ok: bool,
+    disks: Vec<DiskWear>,
+}
+
+const WEAR_TIMEOUT: Duration = Duration::from_secs(120);
+
+fn parse_wear(output: &str) -> Vec<DiskWear> {
+    let rows = ps::json_rows(output).unwrap_or_default();
+    let opt = |v: &Value, k: &str, max: u64| -> Option<u32> {
+        v.get(k)?.as_u64().filter(|n| *n <= max).map(|n| n as u32)
+    };
+    rows.iter()
+        .filter(|r| r.get("Disk").and_then(Value::as_u64).is_some())
+        .map(|r| DiskWear {
+            disk_number: number(r, "Disk") as u32,
+            wear: opt(r, "Wear", 100),
+            celsius: opt(r, "Temp", 130).filter(|c| *c > 0),
+        })
+        .collect()
+}
+
+/// Lit l'usure et la température de chaque disque : Windows ne les donne qu'avec
+/// l'autorisation de l'utilisateur, demandée une seule fois pour tous les disques.
+#[tauri::command]
+pub async fn health_read_wear() -> Result<WearResult, String> {
+    blocking(|| {
+        let (ok, output) = ps::run_elevated_with_result(WEAR_TIMEOUT, |result| {
+            format!(
+                r"$r = foreach ($d in @(Get-PhysicalDisk)) {{
+  $c = $d | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
+  [pscustomobject]@{{ Disk = [int]$d.DeviceId; Wear = $c.Wear; Temp = $c.Temperature }}
+}}
+ConvertTo-Json -InputObject @($r) -Compress | Out-File -LiteralPath {result} -Encoding UTF8 -Force"
+            )
+        });
+        let disks = parse_wear(&output);
+        if !ok || disks.is_empty() {
+            log::warn!("usure des disques : autorisation refusée ou lecture vide");
+        }
+        WearResult {
+            ok: ok && !disks.is_empty(),
+            disks,
+        }
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,6 +590,32 @@ mod tests {
         for t in gpu_temperatures() {
             assert!((1..=130).contains(&t.celsius), "{t:?}");
         }
+    }
+
+    #[test]
+    fn wear_keeps_only_plausible_values() {
+        let out = r#"[{"Disk":0,"Wear":18,"Temp":34},{"Disk":1,"Wear":null,"Temp":0},{"Disk":2,"Wear":250,"Temp":500},{"Wear":5}]"#;
+        assert_eq!(
+            parse_wear(out),
+            [
+                DiskWear {
+                    disk_number: 0,
+                    wear: Some(18),
+                    celsius: Some(34)
+                },
+                DiskWear {
+                    disk_number: 1,
+                    wear: None,
+                    celsius: None
+                },
+                DiskWear {
+                    disk_number: 2,
+                    wear: None,
+                    celsius: None
+                },
+            ]
+        );
+        assert!(parse_wear("").is_empty());
     }
 
     /// Sur la vraie machine : au moins un disque interne, avec une taille.
