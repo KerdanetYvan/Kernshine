@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircleIcon, WarningIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
-import type { WearResult } from '../../types/commands';
+import type { GpuTemperature, SystemInfo, WearResult } from '../../types/commands';
 import { formatListe } from '../../lib/format';
 import Bandeau from '../ui/Bandeau';
 import Carte from '../ui/Carte';
 import Pastille from '../ui/Pastille';
+import CarteBatterie from './CarteBatterie';
 import CarteDisque from './CarteDisque';
-import { evaluerDisque, pire, type Evaluation } from './evaluation';
+import CarteMemoire from './CarteMemoire';
+import CarteTemperature from './CarteTemperature';
+import { evaluerBatterie, evaluerDisque, evaluerMemoire, evaluerTemperature, pire, type Evaluation } from './evaluation';
 import { memoireSante } from './memoire';
 
 /** Résultats de la vérification (Figma : « Santé – Tout va bien » / « À surveiller »). */
@@ -15,6 +18,28 @@ export default function ResultatsSante() {
   const [usure, setUsure] = useState<WearResult | null>(memoireSante.usure);
   const [lecture, setLecture] = useState(false);
   const [refus, setRefus] = useState(false);
+  const [gpus, setGpus] = useState<GpuTemperature[]>(memoireSante.gpus);
+  const [info, setInfo] = useState<SystemInfo | null>(null);
+
+  // En direct tant que la page est ouverte : température (5 s) et mémoire (3 s).
+  useEffect(() => {
+    const lireGpus = () =>
+      invoke<GpuTemperature[]>('health_gpu_temperature')
+        .then((g) => {
+          memoireSante.gpus = g;
+          setGpus(g);
+        })
+        .catch(() => {});
+    const lireInfo = () => invoke<SystemInfo>('system_get_info').then(setInfo).catch(() => {});
+    lireInfo();
+    const t1 = setInterval(lireGpus, 5000);
+    const t2 = setInterval(lireInfo, 3000);
+    return () => {
+      clearInterval(t1);
+      clearInterval(t2);
+    };
+  }, []);
+
   const r = memoireSante.rapport;
   if (!r) return null;
 
@@ -37,7 +62,15 @@ export default function ResultatsSante() {
     const u = usure?.disks.find((w) => w.diskNumber === d.diskNumber);
     return { d, u, e: evaluerDisque(d, u) };
   });
-  const evaluations: Evaluation[] = disques.map((x) => x.e);
+  const eBatterie = r.battery ? evaluerBatterie(r.battery) : null;
+  const eTemperature = gpus.length > 0 ? evaluerTemperature(gpus) : null;
+  const eMemoire = evaluerMemoire(r.memoryTest);
+  const evaluations: Evaluation[] = [
+    ...disques.map((x) => x.e),
+    ...(eBatterie ? [eBatterie] : []),
+    ...(eTemperature ? [eTemperature] : []),
+    eMemoire,
+  ];
   const points = evaluations.map((e) => e.point).filter((p): p is string => !!p);
   const global = pire(evaluations.map((e) => e.statut));
   const phrase = points.length > 0 ? formatListe(points, 10) : '';
@@ -82,6 +115,9 @@ export default function ResultatsSante() {
             onLireUsure={lireUsure}
           />
         ))}
+        {r.battery && eBatterie && <CarteBatterie batterie={r.battery} evaluation={eBatterie} />}
+        {eTemperature && <CarteTemperature gpus={gpus} evaluation={eTemperature} />}
+        {info && <CarteMemoire info={info} test={r.memoryTest} evaluation={eMemoire} />}
       </div>
     </div>
   );
