@@ -96,6 +96,7 @@ pub fn run() {
             updates::updates_close_related_app,
             updates::updates_stop,
             health::health_check,
+            health::health_gpu_temperature,
             uninstall::uninstall_get,
             uninstall::uninstall_sizes,
             uninstall::uninstall_run,

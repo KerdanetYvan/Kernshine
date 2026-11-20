@@ -206,6 +206,216 @@ pub async fn health_check() -> Result<HealthReport, String> {
     .await?
 }
 
+// ─── Température de la carte graphique ──────────────────────────────────────
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuTemperature {
+    /// « NVIDIA GeForce RTX 4060 »
+    name: String,
+    celsius: u32,
+}
+
+/// Températures données par les pilotes graphiques à Windows, quelle que soit la marque :
+/// la source du Gestionnaire des tâches (« Température du GPU »). Pas d'autorisation
+/// nécessaire. Une carte dont le pilote ne la donne pas (souvent les puces intégrées)
+/// est ignorée. Celle du processeur n'est pas lisible ainsi (voir l'issue #67).
+mod kmt {
+    use std::ffi::c_void;
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    struct Luid {
+        low: u32,
+        high: i32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    struct AdapterInfo {
+        adapter: u32,
+        luid: Luid,
+        sources: u32,
+        precise_present_regions: i32,
+    }
+
+    #[repr(C)]
+    struct EnumAdapters2 {
+        count: u32,
+        adapters: *mut AdapterInfo,
+    }
+
+    #[repr(C)]
+    struct QueryAdapterInfo {
+        adapter: u32,
+        kind: u32,
+        data: *mut c_void,
+        size: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct PerfData {
+        physical_adapter_index: u32,
+        memory_frequency: u64,
+        max_memory_frequency: u64,
+        max_memory_frequency_oc: u64,
+        memory_bandwidth: u64,
+        pcie_bandwidth: u64,
+        fan_rpm: u32,
+        power: u32,
+        /// Dixièmes de degré Celsius.
+        temperature: u32,
+        power_state_override: u8,
+    }
+
+    #[repr(C)]
+    struct RegistryInfo {
+        adapter_string: [u16; 260],
+        bios_string: [u16; 260],
+        dac_type: [u16; 260],
+        chip_type: [u16; 260],
+    }
+
+    #[repr(C)]
+    struct CloseAdapter {
+        adapter: u32,
+    }
+
+    const KMTQAITYPE_ADAPTERREGISTRYINFO: u32 = 8;
+    const KMTQAITYPE_ADAPTERPERFDATA: u32 = 62;
+
+    #[link(name = "gdi32")]
+    unsafe extern "system" {
+        fn D3DKMTEnumAdapters2(args: *mut EnumAdapters2) -> i32;
+        fn D3DKMTQueryAdapterInfo(args: *mut QueryAdapterInfo) -> i32;
+        fn D3DKMTCloseAdapter(args: *mut CloseAdapter) -> i32;
+    }
+
+    fn query<T>(adapter: u32, kind: u32, data: &mut T) -> bool {
+        let mut q = QueryAdapterInfo {
+            adapter,
+            kind,
+            data: (data as *mut T).cast(),
+            size: std::mem::size_of::<T>() as u32,
+        };
+        // SAFETY: `data` pointe vers une structure de la taille annoncée, vivante pendant l'appel.
+        unsafe { D3DKMTQueryAdapterInfo(&mut q) >= 0 }
+    }
+
+    /// (nom de la carte, dixièmes de degré) pour chaque carte qui donne sa température.
+    pub fn temperatures() -> Vec<(String, u32)> {
+        let mut e = EnumAdapters2 {
+            count: 0,
+            adapters: std::ptr::null_mut(),
+        };
+        // SAFETY: premier appel sans tableau, Windows renvoie seulement le nombre de cartes.
+        if unsafe { D3DKMTEnumAdapters2(&mut e) } < 0 || e.count == 0 {
+            return Vec::new();
+        }
+        let mut adapters = vec![AdapterInfo::default(); e.count as usize];
+        e.adapters = adapters.as_mut_ptr();
+        // SAFETY: le tableau a la place annoncée dans `count`.
+        if unsafe { D3DKMTEnumAdapters2(&mut e) } < 0 {
+            return Vec::new();
+        }
+        let mut found = Vec::new();
+        for a in adapters.iter().take(e.count as usize) {
+            let mut perf = PerfData::default();
+            let mut info = RegistryInfo {
+                adapter_string: [0; 260],
+                bios_string: [0; 260],
+                dac_type: [0; 260],
+                chip_type: [0; 260],
+            };
+            if query(a.adapter, KMTQAITYPE_ADAPTERPERFDATA, &mut perf)
+                && perf.temperature > 0
+                && query(a.adapter, KMTQAITYPE_ADAPTERREGISTRYINFO, &mut info)
+            {
+                let end = info
+                    .adapter_string
+                    .iter()
+                    .position(|c| *c == 0)
+                    .unwrap_or(260);
+                let name = String::from_utf16_lossy(&info.adapter_string[..end]);
+                found.push((name.trim().to_string(), perf.temperature));
+            }
+            let mut close = CloseAdapter { adapter: a.adapter };
+            // SAFETY: chaque carte ouverte par l'énumération est refermée une fois.
+            unsafe { D3DKMTCloseAdapter(&mut close) };
+        }
+        found
+    }
+}
+
+/// Garde les températures plausibles, arrondies au degré, sans doublon de nom.
+fn gpu_list(raw: Vec<(String, u32)>) -> Vec<GpuTemperature> {
+    let mut list: Vec<GpuTemperature> = Vec::new();
+    for (name, tenths) in raw {
+        let celsius = (tenths + 5) / 10;
+        if (1..=130).contains(&celsius) && !name.is_empty() && !list.iter().any(|g| g.name == name)
+        {
+            list.push(GpuTemperature { name, celsius });
+        }
+    }
+    list
+}
+
+/// Outil installé avec le pilote NVIDIA : en secours, si le pilote ne donne pas la
+/// température à Windows.
+fn nvidia_smi() -> Option<std::path::PathBuf> {
+    let system = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+    let program_files =
+        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    [
+        format!(r"{system}\System32\nvidia-smi.exe"),
+        format!(r"{program_files}\NVIDIA Corporation\NVSMI\nvidia-smi.exe"),
+    ]
+    .into_iter()
+    .map(std::path::PathBuf::from)
+    .find(|p| p.is_file())
+}
+
+/// Première ligne de `nvidia-smi --query-gpu=name,temperature.gpu --format=csv,noheader,nounits`.
+fn parse_gpu(output: &str) -> Option<GpuTemperature> {
+    let line = output.lines().find(|l| !l.trim().is_empty())?;
+    let (name, temp) = line.rsplit_once(',')?;
+    let celsius = temp.trim().parse::<f64>().ok()?;
+    ((1.0..=130.0).contains(&celsius) && !name.trim().is_empty()).then(|| GpuTemperature {
+        name: name.trim().to_string(),
+        celsius: celsius.round() as u32,
+    })
+}
+
+fn gpu_temperatures() -> Vec<GpuTemperature> {
+    let list = gpu_list(kmt::temperatures());
+    if list.is_empty() {
+        nvidia_temperature().into_iter().collect()
+    } else {
+        list
+    }
+}
+
+fn nvidia_temperature() -> Option<GpuTemperature> {
+    let mut cmd = proc::hidden(nvidia_smi()?.to_str()?);
+    cmd.args([
+        "--query-gpu=name,temperature.gpu",
+        "--format=csv,noheader,nounits",
+    ]);
+    let out = proc::capture(cmd, Duration::from_secs(10)).ok()??;
+    if !out.status.success() {
+        return None;
+    }
+    parse_gpu(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Température des cartes graphiques, lue à chaque appel (la page la redemande
+/// toutes les quelques secondes tant qu'elle est ouverte). Vide si illisible.
+#[tauri::command]
+pub async fn health_gpu_temperature() -> Result<Vec<GpuTemperature>, String> {
+    blocking(gpu_temperatures).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +482,50 @@ mod tests {
         let no_cycles =
             laptop.replace("<CycleCount>412</CycleCount>", "<CycleCount>0</CycleCount>");
         assert_eq!(parse_battery(&no_cycles).unwrap().cycles, None);
+    }
+
+    #[test]
+    fn gpu_line_is_parsed_and_checked() {
+        assert_eq!(
+            parse_gpu("NVIDIA GeForce RTX 4060, 38.71\r\n"),
+            Some(GpuTemperature {
+                name: "NVIDIA GeForce RTX 4060".into(),
+                celsius: 39
+            })
+        );
+        assert_eq!(parse_gpu("NVIDIA, [N/A]"), None);
+        assert_eq!(parse_gpu("NVIDIA, 0"), None);
+        assert_eq!(parse_gpu(""), None);
+    }
+
+    #[test]
+    fn gpu_list_rounds_and_drops_implausible_values() {
+        let list = gpu_list(vec![
+            ("AMD Radeon RX 7600".into(), 584),
+            ("Microsoft Basic Render Driver".into(), 0),
+            ("Carte folle".into(), 5000),
+            ("AMD Radeon RX 7600".into(), 590),
+        ]);
+        assert_eq!(
+            list,
+            [GpuTemperature {
+                name: "AMD Radeon RX 7600".into(),
+                celsius: 58
+            }]
+        );
+    }
+
+    /// Sur la vraie machine : des températures plausibles, quelle que soit la marque.
+    #[test]
+    fn real_gpu_temperature() {
+        let windows = gpu_list(kmt::temperatures());
+        eprintln!(
+            "par Windows : {windows:?} ; par nvidia-smi : {:?}",
+            nvidia_temperature()
+        );
+        for t in gpu_temperatures() {
+            assert!((1..=130).contains(&t.celsius), "{t:?}");
+        }
     }
 
     /// Sur la vraie machine : au moins un disque interne, avec une taille.
