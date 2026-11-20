@@ -11,11 +11,13 @@ Nettoyage, réparation et mises à jour en quelques clics — sans jargon techni
 
 | Module | Description |
 | ------------ | -------------------------------------------- |
-| Dashboard | Vue d'ensemble du système : OS, CPU, RAM, uptime |
-| Nettoyage | Suppression des fichiers temporaires et caches |
-| Réparation | Services Windows, fichiers système, registre, disque |
-| Mises à jour | Logiciels (winget) et pilotes |
-| Paramètres | Démarrage automatique, mise à jour de Kernshine, programmes masqués |
+| Accueil | Mémoire, processeur et disques en direct, note sur 100 et entretien complet guidé |
+| Nettoyage | Fichiers inutiles (Windows, navigateurs, logiciels) et gros fichiers personnels |
+| Applications | Mises à jour des logiciels (winget), désinstallation, programmes lancés au démarrage |
+| Pilotes | Mises à jour des pilotes par Windows Update, avec point de restauration |
+| Santé | État des disques (usure sur demande), batterie, température de la carte graphique, mémoire |
+| Réparation | Services Windows, fichiers système, périphériques, programmes fantômes, disques |
+| Paramètres | Démarrage automatique, étapes de l'entretien, mises à jour de Kernshine, programmes masqués |
 
 ---
 

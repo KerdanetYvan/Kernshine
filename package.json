@@ -2,7 +2,7 @@
   "name": "kernshine",
   "productName": "Kernshine",
   "private": true,
-  "version": "0.2.0-alpha.2",
+  "version": "0.2.0-alpha.3",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
