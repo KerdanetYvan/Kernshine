@@ -113,6 +113,7 @@ src/
   components/applications/ # Onglets Mises à jour, Désinstallation et Démarrage de la page Applications
   components/grosfichiers/ # Onglet Gros fichiers de la page Nettoyage
   components/sante/    # Cartes de la page Santé et leur évaluation (seuils, conseils)
+  components/accueil/  # Tuiles, courbes, carte de la note et outils de l'Accueil
   components/entretien/ # Entretien guidé (fenêtre ouverte depuis l'Accueil) et explication de la note
   lib/format.ts        # Tailles (« 6,1 Go »), listes (« a, b et c »), état d'un disque
   pages/               # Dashboard, Cleaning, Applications, Drivers, Health, Repair, Settings, NotFound
@@ -219,7 +220,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 
 | Page | État | Notes |
 |------|------|-------|
-| Dashboard | Fonctionnel | Infos système, CPU et RAM en temps réel (échantillon toutes les 3 s) |
+| Dashboard | Refaite (#54) | Mémoire, processeur (courbes de la dernière minute) et un bloc par disque (place restante, état d'après la place libre), bandeau « Votre disque se remplit » sous 10 % libres ; note sur 100 de la dernière analyse avec son détail, ou « Faisons le point » si jamais analysé ; « Lancer l'entretien » ouvre l'entretien guidé ; cartes « Pour aller plus loin » (Santé, Gros fichiers, Programmes installés) |
 | Cleaning | Refaite (#49) | 18 zones en 4 groupes (Windows, Navigateurs, Applications, Autres), « Sans risque » cochées d'office, « À vérifier » (Windows.old) à cocher soi-même ; progression en continu, arrêt possible, place libre des disques avant/après. Onglet Gros fichiers (#55, `?onglet=gros-fichiers`) : voir ci-dessous |
 | Applications | Refaite (#50) | Mises à jour : recherche au clic puis liste gardée en mémoire (« Dernière vérification… »), applications ouvertes décochées avec « Fermer » (fermeture normale, puis « Forcer » si elle reste près de l'horloge), programmes masqués, arrêt entre deux installations, bilan avec nouvel essai. Démarrage : interrupteurs (sans autorisation pour les programmes de l'utilisateur), annulation, programmes nécessaires verrouillés (liste fermée dans `repair.rs`). Désinstallation (#56) : voir ci-dessous |
 | Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
@@ -255,7 +256,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
   - Batterie : rapport de Windows (`powercfg /batteryreport /xml`), section `<Batteries>` seulement ; absente sur un PC fixe.
   - Température des cartes graphiques : celle que le pilote donne à Windows (comme le Gestionnaire des tâches, toutes marques), `nvidia-smi` en secours. Celle du processeur n'est pas lisible sans pilote système : idée suivie dans l'issue #67 (colonne « Idées » du board).
   - Pas de « surveillé en continu » : seules la température et la mémoire sont relues, tant que la page est ouverte. La courbe de la mémoire couvre la dernière minute (historique de `system.rs`).
-- **Entretien guidé** (`components/entretien/`, #58) : grande fenêtre ouverte depuis l'Accueil (branchée avec l'Accueil refait, #54).
+- **Entretien guidé** (`components/entretien/`, #58) : grande fenêtre ouverte depuis l'Accueil (« Analyser mon PC » ou « Lancer l'entretien »).
   - Analyse de tout dès l'ouverture (nettoyage, gros fichiers, applications, pilotes), puis récapitulatif à cocher, puis chaque étape à la suite. Rien ne se lance avant « Lancer l'entretien ». Les étapes décochées dans les Paramètres (`maintenance*` de `prefs.rs`) sont ignorées.
   - Réutilise les commandes des pages, avec les mêmes choix par défaut : zones « Sans risque », **aucun** gros fichier (suppression définitive, confirmée par `FenetreConfirmation`), applications fermées, tous les pilotes. Les pilotes exigent la sauvegarde de sécurité si elle est réglée : si elle échoue, ils ne sont pas installés et le bilan renvoie vers la page Pilotes.
   - Note sur 100 (`maintenance.rs`) : place libre du disque de Windows 30, fichiers inutiles 20, mises à jour en attente 25, santé du matériel 25 (lue sans autorisation). Une étape décochée n'est pas comptée (note ramenée sur 100). Calculée après l'analyse puis après l'entretien, gardée dans `maintenance.json`. Explication de chaque part : `PARTS_NOTE` (`components/entretien/note.ts`).

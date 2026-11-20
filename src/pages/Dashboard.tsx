@@ -1,188 +1,105 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FilesIcon, HeartbeatIcon, TrashIcon } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SystemInfo, StatPoint } from '../types/commands';
+import type { DiskSpace, MaintenanceScore, SystemInfo } from '../types/commands';
+import { etatDisque, formatOctets } from '../lib/format';
+import Bandeau from '../components/ui/Bandeau';
 import EnTetePage from '../components/ui/EnTetePage';
+import Pastille from '../components/ui/Pastille';
+import CarteNote from '../components/accueil/CarteNote';
+import CarteOutil from '../components/accueil/CarteOutil';
+import Courbe from '../components/accueil/Courbe';
+import Tuile from '../components/accueil/Tuile';
+import Entretien from '../components/entretien/Entretien';
+import { disqueSysteme } from '../components/entretien/note';
 
-function SparkLine({ points, color }: { points: number[], color: string }) {
-  if (points.length < 2) return null;
-  const W = 100, H = 40;
-  const coords = points.map((v, i) => {
-    const x = (i / (points.length - 1)) * W;
-    const y = H - Math.min(100, Math.max(0, v)) / 100 * H;
-    return `${x},${y}`;
-  });
-  const line = coords.join(' ');
-  const area = `0,${H} ${line} ${W},${H}`;
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-10" preserveAspectRatio="none">
-      <polygon points={area} fill={color} fillOpacity="0.15" />
-      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
+const go = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Go`;
 
-function ramPct(point: StatPoint, totalGB: number) {
-  return Math.round((1 - point.freeMemoryGB / totalGB) * 100);
-}
-
+/**
+ * Accueil (Figma : « Accueil – Critique » / « Jamais analysé ») : mémoire, processeur et
+ * disques en direct, note sur 100 de la dernière analyse et entretien complet.
+ */
 export default function Dashboard() {
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [info, setInfo] = useState<SystemInfo | null>(null);
+  const [disques, setDisques] = useState<DiskSpace[]>([]);
+  const [note, setNote] = useState<MaintenanceScore | null>(null);
+  const [entretien, setEntretien] = useState(false);
 
   useEffect(() => {
-    loadSystemInfo(true);
-    const interval = setInterval(loadSystemInfo, 3000);
-    return () => clearInterval(interval);
+    const lireInfo = () => invoke<SystemInfo>('system_get_info').then(setInfo).catch(() => {});
+    const lireDisques = () => invoke<DiskSpace[]>('system_get_disks').then(setDisques).catch(() => {});
+    lireInfo();
+    lireDisques();
+    invoke<MaintenanceScore | null>('maintenance_last').then(setNote).catch(() => {});
+    const t1 = setInterval(lireInfo, 3000);
+    const t2 = setInterval(lireDisques, 30000);
+    return () => {
+      clearInterval(t1);
+      clearInterval(t2);
+    };
   }, []);
 
-  const loadSystemInfo = async (showSpinner = false) => {
-    try {
-      if (showSpinner) setLoading(true);
-      const info = await invoke<SystemInfo>('system_get_info');
-      setSystemInfo(info);
-    } catch (error) {
-      console.error("Erreur lors du chargement des infos système:", error);
-    } finally {
-      if (showSpinner) setLoading(false);
-    }
+  const fermerEntretien = () => {
+    setEntretien(false);
+    invoke<DiskSpace[]>('system_get_disks').then(setDisques).catch(() => {});
   };
 
-  if (loading) {
-    return (
-      <section className="space-y-4">
-        <EnTetePage titre="Accueil" sousTitre="L'état de votre ordinateur, en direct." />
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neutral-900"></div>
-        </div>
-      </section>
-    );
-  }
+  const systeme = disqueSysteme(disques);
+  const plein = systeme && etatDisque(systeme.freeBytes, systeme.totalBytes) === 'corriger';
+  const memoire = info ? info.statsHistory.map((p) => (1 - p.freeMemoryGB / info.memoryGB) * 100) : [];
+  const processeur = info ? info.statsHistory.map((p) => p.cpuPercent) : [];
+  const utilisee = info ? info.memoryGB - info.freeMemoryGB : 0;
 
   return (
-    <section className="space-y-6">
+    <section className="flex flex-col gap-8">
       <EnTetePage titre="Accueil" sousTitre="L'état de votre ordinateur, en direct." />
 
-      {systemInfo && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-          {/* Carte Système */}
-          <div className="bg-white p-6 shadow-md border border-neutral-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-neutral-100">
-                <span className="text-2xl">💻</span>
-              </div>
-              <h2 className="text-lg font-semibold">Système</h2>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-neutral-600">OS :</span>
-                <span className="font-medium">{systemInfo.osType}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Version :</span>
-                <span className="font-medium">{systemInfo.release}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Architecture :</span>
-                <span className="font-medium">{systemInfo.arch}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Carte CPU */}
-          <div className="bg-white p-6 shadow-md border border-neutral-200">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-500/10">
-                <span className="text-2xl">⚡</span>
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Processeur</h2>
-                <p className="text-xs text-neutral-400 truncate max-w-[160px]">
-                  {systemInfo.cpus[0]?.model.split(' ').slice(0, 4).join(' ') || 'N/A'} · {systemInfo.cpus.length} cœurs
-                </p>
-              </div>
-            </div>
-            {(() => {
-              const pct    = systemInfo.cpuUsagePercent;
-              const color  = pct >= 80 ? '#ef4444' : pct >= 50 ? '#f59e0b' : '#3b82f6';
-              const cpuPts = systemInfo.statsHistory.map(p => p.cpuPercent);
-              return (
-                <>
-                  <SparkLine points={cpuPts} color={color} />
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-neutral-400">1 min</span>
-                    <span className="text-sm font-semibold" style={{ color }}>{pct}%</span>
-                    <span className="text-xs text-neutral-400">maintenant</span>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Carte Mémoire */}
-          <div className="bg-white p-6 shadow-md border border-neutral-200">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-green-500/10">
-                <span className="text-2xl">🧠</span>
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Mémoire</h2>
-                <p className="text-xs text-neutral-400">
-                  {parseFloat((systemInfo.memoryGB - systemInfo.freeMemoryGB).toFixed(1))} Go utilisés sur {systemInfo.memoryGB} Go
-                </p>
-              </div>
-            </div>
-            {(() => {
-              const pct   = Math.round((1 - systemInfo.freeMemoryGB / systemInfo.memoryGB) * 100);
-              const color = pct >= 85 ? '#ef4444' : pct >= 65 ? '#f59e0b' : '#22c55e';
-              const ramPts = systemInfo.statsHistory.map(p => ramPct(p, systemInfo.memoryGB));
-              return (
-                <>
-                  <SparkLine points={ramPts} color={color} />
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-neutral-400">1 min</span>
-                    <span className="text-sm font-semibold" style={{ color }}>{pct}%</span>
-                    <span className="text-xs text-neutral-400">maintenant</span>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Carte Machine */}
-          <div className="bg-white p-6 shadow-md border border-neutral-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-500/10">
-                <span className="text-2xl">🖥️</span>
-              </div>
-              <h2 className="text-lg font-semibold">Machine</h2>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Nom :</span>
-                <span className="font-medium">{systemInfo.hostname}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Utilisateur :</span>
-                <span className="font-medium">{systemInfo.userInfo?.username || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Allumé depuis :</span>
-                <span className="font-medium">{systemInfo.uptimeHours}h</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
+      {plein && systeme && (
+        <Bandeau type="corriger" action={{ libelle: "Libérer de l'espace", onClick: () => navigate('/cleaning') }}>
+          Votre disque {systeme.letter} se remplit : il ne reste que {formatOctets(systeme.freeBytes)} de libre.
+        </Bandeau>
       )}
 
-      {!systemInfo && !loading && (
-        <div className="bg-red-50 border border-red-200 p-4">
-          <p className="text-red-800">
-            Impossible de charger les informations système.
-          </p>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-6">
+        <Tuile
+          titre="Mémoire"
+          valeur={info ? `${Math.round((utilisee / info.memoryGB) * 100)} %` : '…'}
+          detail={info ? `${go(utilisee)} utilisés sur ${go(info.memoryGB)}` : 'Lecture…'}
+        >
+          <Courbe valeurs={memoire} couleur="or" />
+        </Tuile>
+        <Tuile titre="Processeur" valeur={info ? `${Math.round(info.cpuUsagePercent)} %` : '…'} detail="Charge en ce moment">
+          <Courbe valeurs={processeur} couleur="vert" />
+        </Tuile>
+        {disques.map((d) => (
+          <Tuile key={d.letter} titre={`Disque ${d.letter}`} valeur={formatOctets(d.freeBytes, true)} unite="restants" detail={`sur ${formatOctets(d.totalBytes, true)} au total`}>
+            <div className="flex flex-col items-start gap-1.5">
+              <p className="text-legende text-secondary">État du disque</p>
+              <Pastille statut={etatDisque(d.freeBytes, d.totalBytes)}>
+                {{ ok: 'Tout va bien', surveiller: 'À surveiller', corriger: 'Critique', info: '', neutre: '' }[etatDisque(d.freeBytes, d.totalBytes)]}
+              </Pastille>
+            </div>
+          </Tuile>
+        ))}
+      </div>
+
+      <CarteNote note={note} onLancer={() => setEntretien(true)} />
+
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-titre-2 text-primary">Pour aller plus loin</h2>
+          <p className="text-corps-petit text-secondary">Des outils en plus, quand vous en avez envie.</p>
         </div>
-      )}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
+          <CarteOutil icone={HeartbeatIcon} titre="Santé du matériel" texte="Vérifiez l'état de votre disque et de votre batterie." bouton="Vérifier" onClick={() => navigate('/health')} />
+          <CarteOutil icone={FilesIcon} titre="Gros fichiers" texte="Trouvez ce qui occupe le plus de place sur votre disque." bouton="Chercher" onClick={() => navigate('/cleaning?onglet=gros-fichiers')} />
+          <CarteOutil icone={TrashIcon} titre="Programmes installés" texte="Désinstallez ce que vous n'utilisez plus." bouton="Voir la liste" onClick={() => navigate('/applications?onglet=desinstallation')} />
+        </div>
+      </section>
+
+      {entretien && <Entretien onFermer={fermerEntretien} onNote={setNote} />}
     </section>
   );
 }
