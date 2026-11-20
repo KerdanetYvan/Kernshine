@@ -93,7 +93,8 @@ src-tauri/
     diagnose.rs        # Échecs d'installation : message simple + type (bouton à proposer)
     report.rs          # Rapport de chaque session de mise à jour (versions avant / attendue / après)
     settings.rs        # Version, lancement avec Windows, liens « À propos » (liste fermée), ouverture d'un rapport
-    prefs.rs           # Préférences de l'utilisateur (preferences.json) : mises à jour automatiques, point de restauration
+    prefs.rs           # Préférences de l'utilisateur (preferences.json) : mises à jour automatiques, point de restauration, étapes de l'entretien
+    maintenance.rs     # Note sur 100 de l'entretien (calcul et dernière note dans maintenance.json)
     selfupdate.rs      # Mise à jour de Kernshine lui-même (vérifier, télécharger, installer)
     hidden.rs          # Programmes et pilotes masqués (hidden-updates.json, pilotes préfixés « pilote: »)
     ps.rs              # PowerShell : normal, administrateur, résultat, échappement
@@ -112,6 +113,7 @@ src/
   components/applications/ # Onglets Mises à jour, Désinstallation et Démarrage de la page Applications
   components/grosfichiers/ # Onglet Gros fichiers de la page Nettoyage
   components/sante/    # Cartes de la page Santé et leur évaluation (seuils, conseils)
+  components/entretien/ # Entretien guidé (fenêtre ouverte depuis l'Accueil) et explication de la note
   lib/format.ts        # Tailles (« 6,1 Go »), listes (« a, b et c »), état d'un disque
   pages/               # Dashboard, Cleaning, Applications, Drivers, Health, Repair, Settings, NotFound
 ```
@@ -223,7 +225,7 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
 | Drivers | Refaite (#51) | Recherche au clic puis liste gardée en mémoire ; noms simples (« Carte graphique NVIDIA »), versions ou date, redémarrage requis, « Ne plus proposer ». Installation en une seule autorisation : point de restauration d'abord (s'il échoue, rien n'est installé et l'interface demande), puis un pilote à la fois, avancement lu dans un fichier, arrêt entre deux pilotes. Redémarrage proposé avec confirmation |
 | Repair | Refaite (#52) | Une analyse au clic (programmes essentiels, périphériques, programmes fantômes, disques), résultats gardés en mémoire et triés en À corriger / Tout va bien ; chaque réparation relance l'analyse de sa zone. Fichiers système en « vérification approfondie », à la demande. Écrans validés dans le Figma (pas de maquette d'origine) |
 | Health | Nouvelle (#57) | Vérification au clic puis résultats gardés en mémoire ; disques (état donné par Windows, place, type, usure sur demande), batterie (portables), température des cartes graphiques en direct, mémoire (dernière minute, dernier test de Windows). Voir ci-dessous |
-| Settings | Refaite (#53) | Démarrage (lancer avec Windows), Sécurité (point de restauration avant les pilotes), Mises à jour (automatiques, désactivées par défaut ; version et « Installer »), À propos. Thème sombre grisé jusqu'à l'Accueil refait (#54) ; Entretien et Gros fichiers arriveront avec #58 et #55 ; Langue masquée (français seulement) |
+| Settings | Refaite (#53) | Démarrage (lancer avec Windows), Sécurité (point de restauration avant les pilotes), Mises à jour (automatiques, désactivées par défaut ; version et « Installer »), À propos. Entretien (étapes à inclure, #58), Gros fichiers (taille minimale). Thème sombre grisé jusqu'à l'Accueil refait (#54) ; Langue masquée (français seulement) |
 
 ## Points d'attention
 
@@ -253,5 +255,9 @@ La charte vient de la page *Fondations* du Figma et des variables des composants
   - Batterie : rapport de Windows (`powercfg /batteryreport /xml`), section `<Batteries>` seulement ; absente sur un PC fixe.
   - Température des cartes graphiques : celle que le pilote donne à Windows (comme le Gestionnaire des tâches, toutes marques), `nvidia-smi` en secours. Celle du processeur n'est pas lisible sans pilote système : idée suivie dans l'issue #67 (colonne « Idées » du board).
   - Pas de « surveillé en continu » : seules la température et la mémoire sont relues, tant que la page est ouverte. La courbe de la mémoire couvre la dernière minute (historique de `system.rs`).
+- **Entretien guidé** (`components/entretien/`, #58) : grande fenêtre ouverte depuis l'Accueil (branchée avec l'Accueil refait, #54).
+  - Analyse de tout dès l'ouverture (nettoyage, gros fichiers, applications, pilotes), puis récapitulatif à cocher, puis chaque étape à la suite. Rien ne se lance avant « Lancer l'entretien ». Les étapes décochées dans les Paramètres (`maintenance*` de `prefs.rs`) sont ignorées.
+  - Réutilise les commandes des pages, avec les mêmes choix par défaut : zones « Sans risque », **aucun** gros fichier (suppression définitive, confirmée par `FenetreConfirmation`), applications fermées, tous les pilotes. Les pilotes exigent la sauvegarde de sécurité si elle est réglée : si elle échoue, ils ne sont pas installés et le bilan renvoie vers la page Pilotes.
+  - Note sur 100 (`maintenance.rs`) : place libre du disque de Windows 30, fichiers inutiles 20, mises à jour en attente 25, santé du matériel 25 (lue sans autorisation). Une étape décochée n'est pas comptée (note ramenée sur 100). Calculée après l'analyse puis après l'entretien, gardée dans `maintenance.json`. Explication de chaque part : `PARTS_NOTE` (`components/entretien/note.ts`).
 - **Adaptateur supprimé** : les pages appellent `invoke()` directement (plus de `window.api`).
 - **Tests Rust sur la CI** : ils lancent de vraies analyses PowerShell. Si l'un d'eux dépend de la machine, le rendre tolérant.
