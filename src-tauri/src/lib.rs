@@ -3,6 +3,7 @@ mod diagnose;
 mod drivers;
 mod health;
 mod hidden;
+mod history;
 mod maintenance;
 mod prefs;
 mod proc;

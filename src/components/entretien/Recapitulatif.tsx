@@ -3,7 +3,7 @@ import { CpuIcon, FilesIcon, SquaresFourIcon, TrashIcon } from '@phosphor-icons/
 import { formatOctets, pluriel } from '../../lib/format';
 import Pastille from '../ui/Pastille';
 import { ancienneteFichier, emplacement } from '../grosfichiers/fichiers';
-import { versions } from '../applications/versions';
+import { CONSEIL_BLOQUEE, versions } from '../applications/versions';
 import GroupeRecap from './GroupeRecap';
 import LigneRecap from './LigneRecap';
 import { basculer, etatGroupe, zonesUtiles, type Choix, type Trouve } from './donnees';
@@ -102,7 +102,15 @@ export default function Recapitulatif({ trouve: t, choix, onChoix, sauvegarde, o
             <LigneRecap
               key={a.id}
               titre={a.name}
-              detail={a.open ? `${versions(a)} · ouverte : fermez-la pour la mettre à jour` : versions(a)}
+              detail={
+                a.open
+                  ? `${versions(a)} · ouverte : fermez-la pour la mettre à jour`
+                  : a.stuck
+                    ? `${versions(a)} · ${CONSEIL_BLOQUEE}`
+                    : a.versionUnknown
+                      ? `${versions(a)} · peut revenir même après sa mise à jour`
+                      : versions(a)
+              }
               coche={choix.applis.has(a.id)}
               onCocher={(c) => change('applis', [a.id], c)}
               fin={

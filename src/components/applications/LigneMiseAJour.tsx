@@ -3,7 +3,7 @@ import type { SoftwareUpdate } from '../../types/commands';
 import Bouton from '../ui/Bouton';
 import CaseACocher from '../ui/CaseACocher';
 import Pastille from '../ui/Pastille';
-import { versions } from './versions';
+import { CONSEIL_BLOQUEE, versions } from './versions';
 
 /** Où en est la fermeture d'une application ouverte. */
 export type Fermeture =
@@ -33,6 +33,7 @@ export default function LigneMiseAJour({ pkg, coche, onCocher, onMasquer, fermet
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="truncate text-corps-gras text-primary">{pkg.name}</p>
           <p className="text-corps-petit text-secondary">{versions(pkg)}</p>
+          {pkg.stuck && <p className="text-corps-petit text-secondary">{CONSEIL_BLOQUEE}</p>}
         </div>
         {pkg.open ? (
           <>

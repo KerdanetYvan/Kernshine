@@ -95,6 +95,8 @@ export interface SoftwareUpdate {
   versionUnknown: boolean;
   /** L'application semble ouverte : décochée d'office, avec un bouton pour la fermer. */
   open: boolean;
+  /** Cette version s'est déjà installée plusieurs fois sans effet : décochée d'office. */
+  stuck: boolean;
 }
 
 // ── Pilotes (drivers.rs) ─────────────────────────────────────────────────────
@@ -143,6 +145,8 @@ export interface SoftwareScanResult {
   ok: boolean;
   data: SoftwareUpdate[];
   hidden: SoftwareUpdate[];
+  /** Version déjà refusée pour ce PC : proposée de nouveau à la version suivante. */
+  incompatible: SoftwareUpdate[];
   error?: string;
 }
 

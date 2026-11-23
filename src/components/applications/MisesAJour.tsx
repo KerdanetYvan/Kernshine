@@ -13,12 +13,11 @@ import BilanMisesAJour from './BilanMisesAJour';
 import InstallationEnCours, { type StatutInstallation } from './InstallationEnCours';
 import LigneMiseAJour, { type Fermeture } from './LigneMiseAJour';
 import { derniereRecherche } from './memoire';
+import { cocheeDOffice } from './versions';
 
 type Phase = 'accueil' | 'recherche' | 'liste' | 'installation' | 'termine';
 
 const parNom = (a: SoftwareUpdate, b: SoftwareUpdate) => a.name.localeCompare(b.name);
-/** Cochées d'office : version lisible et application fermée. */
-const cocheeDOffice = (p: SoftwareUpdate) => !p.versionUnknown && !p.open;
 const paquet = (p: SoftwareUpdate) => ({ id: p.id, name: p.name, currentVersion: p.currentVersion, availableVersion: p.availableVersion });
 
 /** Onglet « Mises à jour » de la page Applications. */
@@ -28,6 +27,7 @@ export default function MisesAJour() {
   const [phase, setPhase] = useState<Phase>(memo ? 'liste' : 'accueil');
   const [liste, setListe] = useState<SoftwareUpdate[]>(memo?.data ?? []);
   const [masques, setMasques] = useState<SoftwareUpdate[]>(memo?.hidden ?? []);
+  const [incompatibles, setIncompatibles] = useState<SoftwareUpdate[]>(memo?.incompatible ?? []);
   const [erreur, setErreur] = useState<string | null>(memo && !memo.ok ? (memo.error ?? null) : null);
   const [selection, setSelection] = useState<Set<string>>(new Set((memo?.data ?? []).filter(cocheeDOffice).map((p) => p.id)));
   const [fermetures, setFermetures] = useState<Map<string, Fermeture>>(new Map());
@@ -61,6 +61,7 @@ export default function MisesAJour() {
       derniereRecherche.quand = Date.now();
       setListe(res.data);
       setMasques(res.hidden ?? []);
+      setIncompatibles(res.incompatible ?? []);
       setSelection(new Set(res.data.filter(cocheeDOffice).map((p) => p.id)));
       setErreur(res.ok ? null : (res.error ?? 'La recherche a échoué. Réessayez dans un instant.'));
     } catch (e) {
@@ -142,7 +143,7 @@ export default function MisesAJour() {
       const data = liste.map((x) => (x.id === p.id ? { ...x, open: false } : x));
       setListe(data);
       memoriser(data, masques);
-      if (!p.versionUnknown) cocher(p.id, true);
+      if (cocheeDOffice({ ...p, open: false })) cocher(p.id, true);
     } else {
       setFermetures((prev) => new Map(prev).set(p.id, { etat: res?.reason === 'still_open' ? 'encore_ouverte' : 'introuvable' }));
     }
@@ -276,6 +277,15 @@ export default function MisesAJour() {
     </div>
   );
 
+  // Versions déjà refusées pour ce PC : rien à faire, elles reviendront d'elles-mêmes.
+  const ligneIncompatibles = incompatibles.length > 0 && (
+    <p className="text-corps-petit text-secondary">
+      {incompatibles.length > 1
+        ? `${formatListe(incompatibles.map((p) => p.name))} n'ont pas de version compatible avec votre PC pour l'instant : elles vous seront proposées de nouveau à leur prochaine version.`
+        : `${incompatibles[0].name} n'a pas de version compatible avec votre PC pour l'instant : elle vous sera proposée de nouveau à sa prochaine version.`}
+    </p>
+  );
+
   const ligne = (p: SoftwareUpdate) => (
     <LigneMiseAJour
       key={p.id}
@@ -308,6 +318,7 @@ export default function MisesAJour() {
             <p className="text-corps text-secondary">Toutes vos applications sont à la dernière version. {derniere}.</p>
           </div>
         </Carte>
+        {ligneIncompatibles}
         {ligneMasques}
         {erreurMasque && <Bandeau type="corriger">{erreurMasque}</Bandeau>}
         <div className="flex justify-end">
@@ -359,6 +370,7 @@ export default function MisesAJour() {
         </section>
       )}
 
+      {ligneIncompatibles}
       {ligneMasques}
       {erreurMasque && <Bandeau type="corriger">{erreurMasque}</Bandeau>}
 
