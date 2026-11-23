@@ -188,6 +188,11 @@ const CODE_RULES: &[(u32, FailureKind, &str)] = &[
         "L'ancienne version ne peut pas être retirée automatiquement. Mettez à jour depuis le site de l'éditeur",
     ),
     (
+        0x8A15_005F,
+        UpdateManually,
+        "Ce programme ne peut pas être mis à jour automatiquement. Mettez-le à jour depuis le programme lui-même ou le site de l'éditeur",
+    ),
+    (
         0x8019_0193,
         UpdateManually,
         "L'éditeur refuse le téléchargement automatique. Mettez à jour depuis son site",
@@ -356,6 +361,13 @@ mod tests {
         let gantt = "WinGet ne trouve pas la commande de désinstallation de ce package. Contactez l’éditeur du package pour obtenir de l’aide.";
         assert_eq!(kind(gantt, 2_316_632_111), UpdateManually);
         assert_eq!(kind("", 2_316_632_111), UpdateManually);
+
+        // Battle.net (retour testeur du 23/11/2026) : le paquet exige un dossier d'installation.
+        let battlenet = "Ce package nécessite un emplacement d’installation\n\
+            L’emplacement d’installation est requis par le package, mais il n’a pas été fourni";
+        let d = diagnose(battlenet, 2_316_632_159);
+        assert_eq!(d.kind, UpdateManually);
+        assert!(!d.message.contains("réessayez"), "{}", d.message);
     }
 
     #[test]

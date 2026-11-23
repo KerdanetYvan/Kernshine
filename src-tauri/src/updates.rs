@@ -443,8 +443,20 @@ struct Verified {
     installed: Option<String>,
 }
 
+/// Parties numériques d'une version (« 8.0.34 » → [8, 0, 34]) pour comparer deux versions.
+fn version_key(version: &str) -> Vec<u64> {
+    version
+        .split(['.', '-', '+', ' '])
+        .map(|part| {
+            let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
+            digits.parse().unwrap_or(0)
+        })
+        .collect()
+}
+
 /// Version installée d'un programme dans le tableau de `winget list` (avec ou sans colonne
-/// « Disponible »).
+/// « Disponible »). Certains programmes s'installent à côté de l'ancienne version (.NET) : le
+/// tableau a alors une ligne par version et c'est la plus récente qui compte.
 fn installed_version(output: &str, id: &str) -> Option<String> {
     let lines: Vec<&str> = output
         .split(['\r', '\n'])
@@ -474,13 +486,14 @@ fn installed_version(output: &str, id: &str) -> Option<String> {
     };
     lines[sep + 1..]
         .iter()
-        .find_map(|line| {
+        .filter_map(|line| {
             let chars: Vec<char> = line.chars().collect();
             cell(&chars, 1)
                 .eq_ignore_ascii_case(id)
                 .then(|| cell(&chars, 2))
         })
         .filter(|v| !v.is_empty())
+        .max_by(|a, b| version_key(a).cmp(&version_key(b)))
 }
 
 /// Relit l'état du programme après une installation réussie.
@@ -1518,6 +1531,37 @@ mod tests {
             installed_version("Aucun package installé ne correspond.", "Git.Git"),
             None
         );
+    }
+
+    #[test]
+    fn side_by_side_versions_report_the_newest() {
+        // .NET 8 (retour testeur du 23/11/2026) : la nouvelle version s'installe à côté de
+        // l'ancienne, le tableau a une ligne par version et l'ancienne vient en premier.
+        let row = |a: &str, b: &str, c: &str, d: &str| format!("{a:<52}{b:<40}{c:<12}{d}\r\n");
+        let output = [
+            row("Nom", "ID", "Version", "Source"),
+            format!("{}\r\n", "-".repeat(100)),
+            row(
+                "Microsoft Windows Desktop Runtime - 8.0.14 (x64)",
+                "Microsoft.DotNet.DesktopRuntime.8",
+                "8.0.14",
+                "winget",
+            ),
+            row(
+                "Microsoft Windows Desktop Runtime - 8.0.34 (x64)",
+                "Microsoft.DotNet.DesktopRuntime.8",
+                "8.0.34",
+                "winget",
+            ),
+        ]
+        .concat();
+        assert_eq!(
+            installed_version(&output, "Microsoft.DotNet.DesktopRuntime.8").as_deref(),
+            Some("8.0.34")
+        );
+        // Comparaison numérique, pas alphabétique.
+        assert!(version_key("8.0.34") > version_key("8.0.4"));
+        assert!(version_key("4.1.314.0") > version_key("4.0.306.0"));
     }
 
     #[test]
