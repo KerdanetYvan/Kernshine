@@ -42,11 +42,13 @@ pub struct Entry {
     pub outcome: Outcome,
 }
 
-/// « inconnue » quand la version n'est pas lisible.
+/// « inconnue » quand la version n'est pas lisible (« Unknown », ou « < 1.34.84 » : le
+/// gestionnaire sait seulement qu'elle est plus ancienne).
 fn show(version: &Option<String>) -> String {
     match version.as_deref().map(str::trim) {
         None | Some("") => "inconnue".into(),
         Some(v) if matches!(v.to_lowercase().as_str(), "unknown" | "inconnu") => "inconnue".into(),
+        Some(v) if v.starts_with('<') => "inconnue".into(),
         Some(v) => v.to_string(),
     }
 }
@@ -309,6 +311,16 @@ mod tests {
             !text.contains("Détails techniques"),
             "pas de gestionnaire : pas de section"
         );
+    }
+
+    #[test]
+    fn versions_the_manager_cannot_read_are_shown_as_unknown() {
+        // Speccy, Ubisoft Connect : le gestionnaire sait seulement que la version est plus ancienne.
+        for v in ["< 1.34.84", "Unknown", "inconnu", "  "] {
+            assert_eq!(show(&Some(v.into())), "inconnue", "{v:?}");
+        }
+        assert_eq!(show(&None), "inconnue");
+        assert_eq!(show(&Some("175.2.0.13423".into())), "175.2.0.13423");
     }
 
     #[test]

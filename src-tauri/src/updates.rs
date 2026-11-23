@@ -5,6 +5,7 @@
 //! Les rapports d'échec sont écrits dans `<données de l'app>\logs`.
 
 use crate::diagnose::{self, FailureKind, GENERIC_ERROR};
+use crate::history::{self, History};
 use crate::report::{self, Entry, Outcome};
 use crate::{hidden, proc, ps};
 use regex::Regex;
@@ -124,6 +125,9 @@ pub struct SoftwareUpdate {
     version_unknown: bool,
     /// L'application semble ouverte : l'interface la décoche et propose de la fermer.
     open: bool,
+    /// Cette version s'est déjà installée plusieurs fois sans que la version détectée change
+    /// (voir history.rs) : décochée d'office, avec le conseil de passer par le programme.
+    stuck: bool,
 }
 
 /// Position (en caractères) du début de chaque mot de l'en-tête d'un tableau.
@@ -202,6 +206,7 @@ fn parse_winget_table(output: &str) -> Vec<SoftwareUpdate> {
             id,
             version_unknown: is_version_unknown(&current_version),
             open: false,
+            stuck: false,
             current_version,
             available_version: available,
             source: if source.is_empty() {
@@ -221,6 +226,9 @@ pub struct SoftwareScan {
     ok: bool,
     data: Vec<SoftwareUpdate>,
     hidden: Vec<SoftwareUpdate>,
+    /// Programmes dont la version proposée a déjà été refusée pour ce PC : ils reviendront à
+    /// leur prochaine version.
+    incompatible: Vec<SoftwareUpdate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
@@ -231,6 +239,7 @@ impl SoftwareScan {
             ok: false,
             data: Vec::new(),
             hidden: Vec::new(),
+            incompatible: Vec::new(),
             error: Some(message.into()),
         }
     }
@@ -246,7 +255,22 @@ fn split_hidden(
         .partition(|p| !hidden::contains(hidden_ids, &p.id))
 }
 
-fn get_software(hidden_ids: &[String]) -> SoftwareScan {
+/// Applique l'historique : les versions déjà refusées pour ce PC sont mises à part, celles
+/// qui se sont installées sans effet sont signalées.
+fn apply_history(
+    packages: Vec<SoftwareUpdate>,
+    history: &History,
+) -> (Vec<SoftwareUpdate>, Vec<SoftwareUpdate>) {
+    let (incompatible, mut data): (Vec<_>, Vec<_>) = packages
+        .into_iter()
+        .partition(|p| history.is_not_applicable(&p.id, &p.available_version));
+    for p in &mut data {
+        p.stuck = history.is_stuck(&p.id, &p.available_version);
+    }
+    (data, incompatible)
+}
+
+fn get_software(hidden_ids: &[String], history: &History) -> SoftwareScan {
     let Some(winget) = find_winget() else {
         return SoftwareScan::failed(NO_UPDATER_ERROR);
     };
@@ -266,10 +290,12 @@ fn get_software(hidden_ids: &[String]) -> SoftwareScan {
                 p.open = matches_open_app(&p.name, &open);
             }
             let (data, hidden) = split_hidden(packages, hidden_ids);
+            let (data, incompatible) = apply_history(data, history);
             SoftwareScan {
                 ok: true,
                 data,
                 hidden,
+                incompatible,
                 error: None,
             }
         }
@@ -291,8 +317,13 @@ pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 #[tauri::command]
 pub async fn updates_get_software(app: AppHandle) -> Result<SoftwareScan, String> {
     // Sans liste lisible, rien n'est masqué : l'analyse ne doit pas échouer pour ça.
-    let hidden_ids = data_dir(&app).map(|d| hidden::load(&d)).unwrap_or_default();
-    blocking(move || get_software(&hidden_ids)).await
+    let dir = data_dir(&app).ok();
+    blocking(move || {
+        let hidden_ids = dir.as_deref().map(hidden::load).unwrap_or_default();
+        let history = dir.as_deref().map(history::load).unwrap_or_default();
+        get_software(&hidden_ids, &history)
+    })
+    .await
 }
 
 /// Identifiants des programmes masqués (même ceux qui n'ont plus de mise à jour en attente).
@@ -601,12 +632,29 @@ pub struct StreamResult {
     log_file: Option<String>,
 }
 
-/// Installe les programmes un par un. `emit` reçoit la progression, `report_dir` est le dossier
-/// où écrire le rapport en cas d'échec.
+/// Où une session écrit ce qu'elle a fait.
+#[derive(Default)]
+struct SessionDirs {
+    /// Dossier du rapport de la session.
+    reports: Option<PathBuf>,
+    /// Dossier de l'historique des programmes (history.rs).
+    history: Option<PathBuf>,
+}
+
+impl SessionDirs {
+    fn of(app: &AppHandle) -> Self {
+        SessionDirs {
+            reports: logs_dir(app),
+            history: data_dir(app).ok(),
+        }
+    }
+}
+
+/// Installe les programmes un par un. `emit` reçoit la progression.
 fn install_software_stream(
     packages: Vec<Package>,
     emit: &dyn Fn(Progress),
-    report_dir: Option<&Path>,
+    dirs: &SessionDirs,
 ) -> StreamResult {
     if packages.is_empty() {
         return StreamResult { log_file: None };
@@ -616,7 +664,7 @@ fn install_software_stream(
         find_winget(),
         &InstallTimings::default(),
         emit,
-        report_dir,
+        dirs,
     )
 }
 
@@ -642,7 +690,7 @@ fn install_with(
     winget: Option<PathBuf>,
     timings: &InstallTimings,
     emit: &dyn Fn(Progress),
-    report_dir: Option<&Path>,
+    dirs: &SessionDirs,
 ) -> StreamResult {
     let mut entries: Vec<Entry> = Vec::new();
 
@@ -787,6 +835,9 @@ fn install_with(
     if entries.is_empty() {
         return StreamResult { log_file: None };
     }
+    if let Some(dir) = &dirs.history {
+        history::record(dir, &entries);
+    }
     // Un rapport par session, réussites comme échecs : de quoi comparer avec l'analyse suivante.
     let manager = winget
         .as_ref()
@@ -798,7 +849,7 @@ fn install_with(
         Some(&manager),
     );
     StreamResult {
-        log_file: report::write(report_dir, &text),
+        log_file: report::write(dirs.reports.as_deref(), &text),
     }
 }
 
@@ -814,13 +865,12 @@ pub async fn updates_install_software_stream(
 ) -> Result<StreamResult, String> {
     ARRET.store(false, Ordering::Relaxed);
     blocking(move || {
-        let dir = logs_dir(&app);
         install_software_stream(
             packages,
             &|p| {
                 let _ = on_progress.send(p);
             },
-            dir.as_deref(),
+            &SessionDirs::of(&app),
         )
     })
     .await
@@ -912,16 +962,19 @@ $code = $LASTEXITCODE
     );
 
     // Comme pour une session normale, le nouvel essai laisse un rapport, réussi ou non.
-    let dir = logs_dir(app);
+    let dirs = SessionDirs::of(app);
     let manager = winget.display().to_string();
     let write_session = |entry: Entry| {
+        if let Some(dir) = &dirs.history {
+            history::record(dir, std::slice::from_ref(&entry));
+        }
         let text = report::build(
             "Rapport de mise à jour (nouvel essai avec autorisation)",
             &now_label(),
             &[entry],
             Some(&manager),
         );
-        report::write(dir.as_deref(), &text)
+        report::write(dirs.reports.as_deref(), &text)
     };
     let mut entry = Entry {
         name: name.clone(),
@@ -1234,6 +1287,7 @@ mod tests {
                 source: "winget".into(),
                 version_unknown: false,
                 open: false,
+                stuck: false,
             }
         );
     }
@@ -1407,7 +1461,10 @@ mod tests {
                     .unwrap()
                     .push(serde_json::to_string(&p).unwrap())
             },
-            Some(&dir),
+            &SessionDirs {
+                reports: Some(dir.clone()),
+                history: Some(dir.clone()),
+            },
         );
 
         let events = events.lock().unwrap().clone();
@@ -1534,6 +1591,67 @@ mod tests {
     }
 
     #[test]
+    fn history_sets_refused_versions_aside_and_flags_stuck_ones() {
+        let dir =
+            std::env::temp_dir().join(format!("kernshine_updates_history_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let pkg = |id: &str, available: &str| SoftwareUpdate {
+            id: id.into(),
+            name: id.into(),
+            current_version: "1.0".into(),
+            available_version: available.into(),
+            source: "winget".into(),
+            version_unknown: false,
+            open: false,
+            stuck: false,
+        };
+        let entry = |id: &str, expected: &str, outcome: Outcome| Entry {
+            name: id.into(),
+            id: id.into(),
+            before: Some("1.0".into()),
+            expected: Some(expected.into()),
+            after: None,
+            outcome,
+        };
+        let fusion = || entry("Autodesk.Fusion", "2706.1.17", Outcome::StillOutdated);
+        history::record(&dir, &[fusion(), fusion()]);
+        history::record(
+            &dir,
+            &[entry(
+                "MongoDB.Compass.Full",
+                "1.53.3.0",
+                Outcome::Failed {
+                    message: String::new(),
+                    code: Some(2_316_632_107),
+                    detail: Vec::new(),
+                },
+            )],
+        );
+
+        let (data, incompatible) = apply_history(
+            vec![
+                pkg("Autodesk.Fusion", "2706.1.17"),
+                pkg("MongoDB.Compass.Full", "1.53.3.0"),
+                pkg("Git.Git", "2.56.1"),
+            ],
+            &history::load(&dir),
+        );
+        assert_eq!(incompatible.len(), 1);
+        assert_eq!(incompatible[0].id, "MongoDB.Compass.Full");
+        let stuck: Vec<_> = data.iter().filter(|p| p.stuck).map(|p| &p.id[..]).collect();
+        assert_eq!(stuck, ["Autodesk.Fusion"]);
+
+        // À sa version suivante, MongoDB Compass est proposé de nouveau.
+        let (data, incompatible) = apply_history(
+            vec![pkg("MongoDB.Compass.Full", "1.54.0")],
+            &history::load(&dir),
+        );
+        assert!(incompatible.is_empty());
+        assert_eq!(data.len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn side_by_side_versions_report_the_newest() {
         // .NET 8 (retour testeur du 23/11/2026) : la nouvelle version s'installe à côté de
         // l'ancienne, le tableau a une ligne par version et l'ancienne vient en premier.
@@ -1643,7 +1761,10 @@ mod tests {
                     .unwrap()
                     .push(serde_json::to_string(&p).unwrap())
             },
-            Some(&dir),
+            &SessionDirs {
+                reports: Some(dir.clone()),
+                history: Some(dir),
+            },
         );
         let events = events.lock().unwrap().clone();
         (events, res, started.elapsed())
@@ -1744,7 +1865,7 @@ mod tests {
             eprintln!("gestionnaire de paquets absent de cette machine : test ignoré");
             return;
         }
-        let res = get_software(&[]);
+        let res = get_software(&[], &History::default());
         println!(
             "ok={} {} programmes, erreur={:?}",
             res.ok,

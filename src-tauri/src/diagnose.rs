@@ -45,6 +45,13 @@ static TEXT_RULES: LazyLock<Vec<(Regex, FailureKind, &'static str)>> = LazyLock:
             NeedsPermission,
             "Cette mise à jour a besoin de votre autorisation",
         ),
+        // Ancienne version installée pour tout le PC : sa désinstallation silencieuse échoue
+        // (erreur 1603) sans autorisation (Java 8, PuTTY).
+        (
+            r"(?i)(?:désinstallation|uninstall)[^\n]*code de sortie\s*:\s*1603\b",
+            NeedsPermission,
+            "Pour retirer l'ancienne version, Windows doit vous demander l'autorisation",
+        ),
         // Programme ouvert
         (
             r"(?i)fichiers.{0,80}actuellement utilis|application is currently running|exit the application|files? .{0,40}in use",
@@ -79,9 +86,14 @@ static TEXT_RULES: LazyLock<Vec<(Regex, FailureKind, &'static str)>> = LazyLock:
             "L'ancienne version ne peut pas être retirée automatiquement. Mettez à jour depuis le site de l'éditeur",
         ),
         (
-            r"(?i)technologie d.installation différente",
+            r"(?is)(?:désinstallation du paquet|uninstall).*application not found",
             UpdateManually,
-            "Ce programme doit être réinstallé manuellement",
+            "L'ancienne version ne peut pas être retirée automatiquement. Mettez à jour depuis le site de l'éditeur",
+        ),
+        (
+            r"(?i)technologie d.installation (?:est )?différente|installer technology .{0,40}different",
+            UpdateManually,
+            "Cette version s'installe autrement que la vôtre. Désinstallez le programme, puis installez la nouvelle version depuis le site de l'éditeur",
         ),
         // Compatibilité
         (
@@ -92,7 +104,7 @@ static TEXT_RULES: LazyLock<Vec<(Regex, FailureKind, &'static str)>> = LazyLock:
         (
             r"(?i)aucun package installé ne correspond|no installed package found|application not found",
             Other,
-            "Programme non reconnu",
+            "Ce programme est introuvable : il s'est peut-être déjà mis à jour tout seul. Relancez la recherche",
         ),
         (
             r"(?i)impossible de déterminer le numéro de version",
@@ -213,7 +225,11 @@ const CODE_RULES: &[(u32, FailureKind, &str)] = &[
         Other,
         "Pas de version compatible pour votre système",
     ),
-    (0x8A15_0014, Other, "Programme non reconnu"),
+    (
+        0x8A15_0014,
+        Other,
+        "Ce programme est introuvable : il s'est peut-être déjà mis à jour tout seul. Relancez la recherche",
+    ),
     (
         0x8A15_0104,
         Other,
@@ -368,6 +384,50 @@ mod tests {
         let d = diagnose(battlenet, 2_316_632_159);
         assert_eq!(d.kind, UpdateManually);
         assert!(!d.message.contains("réessayez"), "{}", d.message);
+    }
+
+    // Les cas ci-dessous viennent des rapports du 20 et du 22/11/2026.
+
+    #[test]
+    fn old_versions_that_cannot_be_removed_are_explained() {
+        // GanttProject et EA app : winget ne retrouve pas l'ancienne version à retirer.
+        let gantt = "Le code de hachage de l’installation a été vérifié avec succès\n\
+            Début de la désinstallation du paquet...\n\
+            Une erreur inattendue s'est produite lors de l'exécution de la commande :\n\
+            0x800401f5 : Application not found";
+        let d = diagnose(gantt, 2_147_746_293);
+        assert_eq!(d.kind, UpdateManually);
+        assert!(d.message.contains("ancienne version"), "{}", d.message);
+
+        // DriversCloud : la nouvelle version n'utilise plus le même type d'installateur.
+        let driverscloud = "Une version plus récente a été trouvée, mais la technologie d’installation est différente de la version actuelle installée. Désinstallez le package et installez la version la plus récente.";
+        let d = diagnose(driverscloud, 2_316_632_206);
+        assert_eq!(d.kind, UpdateManually);
+        assert!(d.message.contains("Désinstallez"), "{}", d.message);
+
+        // Java 8 et PuTTY : l'ancienne version, installée pour tout le PC, refuse de partir
+        // sans autorisation (erreur 1603), même programme fermé.
+        let putty = "Début de la désinstallation du paquet...\n\
+            Échec du programme de désinstallation avec le code de sortie : 1603";
+        assert_eq!(kind(putty, 2_316_632_112), NeedsPermission);
+        // Un installateur (et non la désinstallation) qui finit sur 1603 n'est pas concerné.
+        assert_ne!(
+            kind(
+                "Échec du programme d’installation avec le code de sortie : 1603",
+                2_316_632_070
+            ),
+            NeedsPermission
+        );
+    }
+
+    #[test]
+    fn a_program_that_vanished_suggests_a_new_search() {
+        // Opera GX : il s'est mis à jour seul entre la recherche et l'installation.
+        let d = diagnose(
+            "Aucun package installé ne correspond aux critères saisis.",
+            2_316_632_084,
+        );
+        assert!(d.message.contains("Relancez la recherche"), "{}", d.message);
     }
 
     #[test]

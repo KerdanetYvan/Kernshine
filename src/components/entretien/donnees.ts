@@ -1,4 +1,5 @@
 import type { BigFile, Driver, SoftwareUpdate, ZoneInfo } from '../../types/commands';
+import { cocheeDOffice } from '../applications/versions';
 
 /** Ce que l'analyse a trouvé. `null` : étape décochée dans les Paramètres ou analyse impossible. */
 export interface Trouve {
@@ -25,12 +26,13 @@ export const cle = (etape: 'z' | 'f' | 'a' | 'p', id: string) => `${etape}:${id}
 export const zonesUtiles = (zones: ZoneInfo[]) => zones.filter((z) => z.sizeBytes > 0);
 
 /** Choix par défaut, comme dans les pages : zones « Sans risque », aucun gros fichier
- * (suppression définitive), applications fermées, tous les pilotes. */
+ * (suppression définitive), applications fermées à la version connue et pas déjà installées
+ * sans effet, tous les pilotes. */
 export function choixParDefaut(t: Trouve): Choix {
   return {
     zones: new Set(zonesUtiles(t.zones ?? []).filter((z) => z.risque === 'sans_risque').map((z) => z.id)),
     fichiers: new Set(),
-    applis: new Set((t.applis ?? []).filter((a) => !a.open).map((a) => a.id)),
+    applis: new Set((t.applis ?? []).filter(cocheeDOffice).map((a) => a.id)),
     pilotes: new Set((t.pilotes ?? []).map((p) => p.id)),
   };
 }
